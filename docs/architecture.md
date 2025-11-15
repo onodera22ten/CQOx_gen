@@ -865,3 +865,1450 @@ graph TB
 - **Federated Learning**: Privacy-preserving model training
 - **Blockchain Integration**: Immutable audit trail
 - **Quantum-ready Encryption**: Post-quantum cryptography
+
+---
+
+## エンタープライズ級運用仕様
+
+### A. 分散ジョブ実行・一貫性
+
+#### ジョブのIdempotency（冪等性）
+
+**Idempotency-Key発行ポリシー**
+```python
+# API リクエスト時にクライアントが生成
+Idempotency-Key: <client_request_id>_<timestamp>_<hash(payload)>
+
+# または、サーバー側で job_id として生成
+job_id = f"{user_id}_{policy_id}_{created_at_unix}_{uuid4().hex[:8]}"
+```
+
+**重複リクエストの処理**
+- 同じ `Idempotency-Key` での再リクエスト → 既存のjob_id/結果を返す（新規作成しない）
+- DB制約: `UNIQUE(idempotency_key)` on `jobs` テーブル
+- Redis キャッシュ: Key: `idempotency:{key}`, Value: `{job_id}`, TTL: 24時間
+
+#### Celery/RabbitMQリトライポリシー
+
+**リトライ設定**
+```python
+# Celery Task Configuration
+@app.task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,  # 初回: 60秒後
+    autoretry_for=(NetworkError, WolframTimeoutError),
+    retry_backoff=True,      # 指数バックオフ有効
+    retry_backoff_max=600,   # 最大10分
+    retry_jitter=True        # ジッタ追加
+)
+def train_policy_task(self, policy_id, dataset_id):
+    try:
+        # 処理
+        pass
+    except SoftTimeLimit:
+        # タイムアウト時はDLQへ
+        self.request.delivery_info['routing_key'] = 'dead_letter'
+        raise
+```
+
+**Dead Letter Queue (DLQ)**
+- 3回リトライ後も失敗 → `celery.dead_letter` キューへ送信
+- DLQメッセージは24時間保持 → 手動調査・再投入
+- Grafanaでアラート: DLQ深度 > 10
+
+#### ジョブ状態遷移
+
+**有限状態機械（FSM）**
+```
+queued → running → [succeeded | failed | canceled | timeout]
+   ↓         ↓
+ canceled  paused → running
+```
+
+**状態管理**
+```sql
+-- jobs テーブル
+CREATE TABLE jobs (
+    id UUID PRIMARY KEY,
+    idempotency_key VARCHAR(255) UNIQUE NOT NULL,
+    user_id UUID NOT NULL,
+    policy_id UUID,
+    status VARCHAR(20) NOT NULL, -- queued, running, succeeded, failed, canceled, timeout
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    error_message TEXT,
+    retry_count INT DEFAULT 0,
+    metadata JSONB
+);
+
+CREATE INDEX idx_jobs_status ON jobs(status);
+CREATE INDEX idx_jobs_user_id ON jobs(user_id);
+```
+
+**整合性保証**
+1. Celery タスク開始時: DB更新 (`queued` → `running`)
+2. 処理中: 進捗をRedisに記録（`progress:{job_id}` = 45%）
+3. 完了時: DB更新 (`running` → `succeeded`) + Redis削除 + キャッシュ更新
+4. API応答: DBから最新状態を取得（Redis キャッシュは補助）
+
+#### 分散ロック・競合制御
+
+**Redis ベース分散ロック**
+```python
+from redis.lock import Lock
+
+def train_policy_with_lock(policy_id):
+    lock_key = f"lock:policy:{policy_id}"
+    lock = redis_client.lock(lock_key, timeout=3600, blocking_timeout=5)
+
+    if not lock.acquire(blocking=False):
+        raise ConflictError(f"Policy {policy_id} is already being trained")
+
+    try:
+        # 学習処理
+        result = train_model(policy_id)
+    finally:
+        lock.release()
+
+    return result
+```
+
+**DB制約によるロック（代替案）**
+```sql
+-- 同一policy_idに対して複数のrunning jobを防ぐ
+CREATE UNIQUE INDEX idx_jobs_policy_running
+ON jobs(policy_id)
+WHERE status = 'running';
+```
+
+#### キューの優先度とQoS
+
+**Queue分離戦略**
+```python
+# Celery Queue Configuration
+CELERY_TASK_ROUTES = {
+    'tasks.train_heavy_model': {'queue': 'heavy', 'priority': 3},
+    'tasks.quick_analysis': {'queue': 'quick', 'priority': 9},
+    'tasks.ui_response': {'queue': 'realtime', 'priority': 10},
+}
+
+# Worker Configuration
+# Heavy queue: 2 workers × 4 concurrency
+# Quick queue: 4 workers × 8 concurrency
+# Realtime queue: 8 workers × 2 concurrency
+```
+
+**SLA保証**
+- Realtime queue: 95% < 500ms
+- Quick queue: 95% < 5秒
+- Heavy queue: 95% < 5分
+
+---
+
+### B. データ分散・スキーマ管理
+
+#### データパーティショニング戦略
+
+**TimescaleDBパーティショニング**
+```sql
+-- 時系列メトリクスのパーティショニング（月次）
+CREATE TABLE metrics (
+    time TIMESTAMPTZ NOT NULL,
+    model_id UUID NOT NULL,
+    metric_name VARCHAR(50),
+    value DOUBLE PRECISION,
+    labels JSONB
+);
+
+SELECT create_hypertable('metrics', 'time', chunk_time_interval => INTERVAL '1 month');
+CREATE INDEX ON metrics (model_id, time DESC);
+```
+
+**S3/Parquetパーティショニング**
+```
+s3://cqox-data/
+  ├── datasets/
+  │   ├── tenant_id=org-123/
+  │   │   ├── date=2025-01/
+  │   │   │   └── dataset-abc.parquet
+  │   │   └── date=2025-02/
+  │   └── tenant_id=org-456/
+  └── models/
+      └── policy_id=policy-xyz/
+          └── version=v1/
+              └── model.pkl
+```
+
+**大口顧客対策（データスキュー）**
+- tenant_idごとのデータ量監視（Prometheus metrics）
+- 閾値超過（> 10GB）→ 専用パーティション作成
+- 大口顧客は専用Celery workerプールで処理（queue分離）
+
+#### スキーマバージョニング
+
+**Data Contract バージョン管理**
+```yaml
+# data_contract.yaml (version: 2.1)
+version: "2.1"
+dataset_id: "marketing_2025"
+schema:
+  - name: customer_id
+    type: string
+    required: true
+  - name: spend
+    type: float
+    range: [0, 1000000]
+    unit: USD
+  - name: channel  # v2.1で追加
+    type: categorical
+    values: [email, sms, push, web]
+changelog:
+  - version: "2.1"
+    date: "2025-01-15"
+    changes: "Added channel field for multi-channel analysis"
+  - version: "2.0"
+    date: "2024-12-01"
+    changes: "Initial contract for 2025"
+```
+
+**Runs テーブルとの紐付け**
+```sql
+ALTER TABLE jobs ADD COLUMN dataset_schema_version VARCHAR(10);
+
+-- どのバージョンの契約で推定したかを記録
+INSERT INTO jobs (id, dataset_id, dataset_schema_version, ...)
+VALUES ('job-123', 'dataset-abc', '2.1', ...);
+```
+
+#### データライフサイクル・保持期間
+
+**保持ポリシー**
+```python
+# S3 Lifecycle Policy (Terraform)
+resource "aws_s3_bucket_lifecycle_configuration" "cqox_data" {
+  rule {
+    id     = "archive_old_datasets"
+    status = "Enabled"
+
+    transition {
+      days          = 90
+      storage_class = "GLACIER"
+    }
+
+    expiration {
+      days = 395  # 13ヶ月保持
+    }
+  }
+
+  rule {
+    id     = "delete_temp_uploads"
+    prefix = "temp/"
+    expiration {
+      days = 7
+    }
+  }
+}
+```
+
+**PII マスキング・削除**
+```python
+# GDPR準拠のデータ削除
+async def erase_user_data(user_id: str):
+    # 1. Datasets: PII列をマスキング
+    await db.execute("""
+        UPDATE datasets
+        SET customer_id = 'REDACTED',
+            email = 'deleted@example.com'
+        WHERE user_id = $1
+    """, user_id)
+
+    # 2. Audit logs: user_id を匿名化
+    await db.execute("""
+        UPDATE audit_logs
+        SET user_id = NULL,
+            ip_address = '0.0.0.0'
+        WHERE user_id = $1
+    """, user_id)
+
+    # 3. S3オブジェクト削除
+    s3_keys = await get_user_s3_keys(user_id)
+    for key in s3_keys:
+        s3_client.delete_object(Bucket='cqox-data', Key=key)
+```
+
+#### 系統（Lineage）とカタログ
+
+**Lineage テーブル設計**
+```sql
+CREATE TABLE lineage (
+    id UUID PRIMARY KEY,
+    source_type VARCHAR(50),  -- 'dataset', 'model', 'figure', 'decision_card'
+    source_id UUID,
+    target_type VARCHAR(50),
+    target_id UUID,
+    relationship VARCHAR(50), -- 'generated_from', 'used_by', 'derived_from'
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Example: dataset → job → model → figure → decision_card
+INSERT INTO lineage VALUES
+  (gen_uuid(), 'dataset', 'ds-123', 'job', 'job-456', 'used_by', NOW()),
+  (gen_uuid(), 'job', 'job-456', 'model', 'model-789', 'generated_from', NOW()),
+  (gen_uuid(), 'model', 'model-789', 'figure', 'fig-abc', 'generated_from', NOW()),
+  (gen_uuid(), 'figure', 'fig-abc', 'decision_card', 'card-xyz', 'used_by', NOW());
+```
+
+**系統追跡API**
+```python
+# GET /api/lineage/dataset/{dataset_id}
+# → そのdatasetから生成されたすべてのモデル・図表を返す
+```
+
+---
+
+### C. 分散インフラ・可用性
+
+#### マルチAZ/リージョン戦略
+
+**初期構成（Single Region, Multi-AZ）**
+- **EKS/GKE**: 3 Availability Zonesに分散
+- **PostgreSQL**: Multi-AZ RDS（Primary + Standby）
+- **Redis**: Cluster mode, 3 master nodes × 3 AZs
+- **S3**: 自動Multi-AZ冗長化
+
+**将来のMulti-Region戦略（Phase 3）**
+- **Active-Passive**: プライマリリージョン（us-east-1）+ DRリージョン（us-west-2）
+- **データレプリケーション**: PostgreSQL Cross-Region Read Replica, S3 Cross-Region Replication
+- **Failover**: Route53 Health Check → DNSフェイルオーバー（RTO: 5分）
+
+#### 障害ドメイン定義
+
+| 障害ドメイン | 影響範囲 | デグレードモード | 検知方法 |
+|-------------|---------|----------------|---------|
+| **K8s ノード障害** | 影響Pod（他ノードで再起動） | 一時的な応答遅延 | Kubelet health check |
+| **AZ 障害** | 1/3のリソース喪失 | 残り2AZで継続（性能低下） | AWS Health Dashboard |
+| **PostgreSQL 障害** | 全API停止 | Read-only mode (Redis cache) | Connection timeout |
+| **Redis 障害** | キャッシュ喪失、レート制限不可 | DB直接アクセス（遅延増） | Redis PING失敗 |
+| **Wolfram Cloud障害** | モデル学習停止 | 既存結果表示のみ | HTTP timeout (30s) |
+| **RabbitMQ 障害** | ジョブキュー停止 | 新規ジョブ拒否（503） | Management API |
+
+**Wolfram障害時のデグレード例**
+```python
+try:
+    result = wolfram_client.causal_graph(data)
+except WolframUnavailableError:
+    # グレーの"現在利用不可"プレースホルダーを表示
+    return {"graph": None, "status": "unavailable", "message": "Wolfram Cloud is temporarily unavailable"}
+```
+
+#### バックアップ・リストア手順
+
+**PostgreSQL**
+```bash
+# 自動バックアップ（AWS RDS）
+# - 毎日 3:00 UTC に自動スナップショット
+# - トランザクションログ（WAL）を5分ごとにS3にアーカイブ
+# - PITR（Point-in-Time Recovery）: 過去35日間の任意時点に復元可能
+
+# 手動スナップショット（重要変更前）
+aws rds create-db-snapshot \
+  --db-instance-identifier cqox-prod \
+  --db-snapshot-identifier cqox-prod-before-migration-$(date +%Y%m%d)
+
+# リストア
+aws rds restore-db-instance-to-point-in-time \
+  --source-db-instance-identifier cqox-prod \
+  --target-db-instance-identifier cqox-prod-restored \
+  --restore-time 2025-01-15T10:30:00Z
+```
+
+**S3オブジェクト**
+- **Versioning**: 有効化（削除・上書き時も旧バージョン保持）
+- **Cross-Region Replication**: プライマリ（us-east-1） → DR（us-west-2）
+- **削除保護**: MFA Delete有効化（本番環境）
+
+**DR手順 RPO/RTO**
+- **RPO (Recovery Point Objective)**: 5分（WALアーカイブ間隔）
+- **RTO (Recovery Time Objective)**: 15分
+  - RDS Standby フェイルオーバー: ~2分
+  - EKS Pod再起動: ~5分
+  - DNS切り替え: ~3分
+  - 動作確認: ~5分
+
+---
+
+### D. マルチテナント・SaaS
+
+#### テナント分離モデル
+
+**採用方式: DB共有 + tenant_id カラム分離**
+```sql
+-- すべてのテーブルに tenant_id を追加
+ALTER TABLE datasets ADD COLUMN tenant_id UUID NOT NULL;
+ALTER TABLE policies ADD COLUMN tenant_id UUID NOT NULL;
+ALTER TABLE jobs ADD COLUMN tenant_id UUID NOT NULL;
+
+-- Row-Level Security (RLS) で強制分離
+ALTER TABLE datasets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation_policy ON datasets
+  USING (tenant_id = current_setting('app.current_tenant_id')::UUID);
+```
+
+**API Gatewayレベルでのフィルタリング**
+```python
+# FastAPI Dependency
+async def get_current_tenant(token: TokenData = Depends(get_current_user)) -> str:
+    return token.tenant_id
+
+# すべてのクエリでtenant_idをフィルタ
+@router.get("/datasets")
+async def list_datasets(tenant_id: str = Depends(get_current_tenant)):
+    return await db.fetch("SELECT * FROM datasets WHERE tenant_id = $1", tenant_id)
+```
+
+**将来のDB per Tenant移行パス（Phase 3）**
+- 大口顧客（> 100GB data）は専用DBインスタンスに移行
+- `tenant_routing` テーブルで接続先を管理
+
+#### レートリミット・クォータ
+
+**テナント別クォータ設計**
+```sql
+CREATE TABLE tenant_quotas (
+    tenant_id UUID PRIMARY KEY,
+    plan VARCHAR(20),  -- 'free', 'pro', 'enterprise'
+    max_jobs_per_day INT,
+    max_storage_gb INT,
+    max_api_calls_per_min INT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Example
+INSERT INTO tenant_quotas VALUES
+  ('tenant-free-001', 'free', 10, 5, 60),
+  ('tenant-pro-002', 'pro', 100, 50, 300),
+  ('tenant-ent-003', 'enterprise', 1000, 500, 1000);
+```
+
+**レート制限実装（Redis + Lua）**
+```python
+# Sliding Window Rate Limiter
+async def check_rate_limit(tenant_id: str, limit: int, window: int = 60):
+    key = f"ratelimit:{tenant_id}:{int(time.time() // window)}"
+    current = await redis.incr(key)
+
+    if current == 1:
+        await redis.expire(key, window)
+
+    if current > limit:
+        raise HTTPException(status_code=429, detail={
+            "error": "rate_limit_exceeded",
+            "limit": limit,
+            "window": window,
+            "retry_after": window - (int(time.time()) % window)
+        })
+```
+
+**クォータ超過時の429レスポンス**
+```json
+{
+  "error": "quota_exceeded",
+  "message": "Daily job limit reached (10/10). Upgrade to Pro plan for more.",
+  "quota": {
+    "type": "jobs_per_day",
+    "limit": 10,
+    "used": 10,
+    "reset_at": "2025-01-16T00:00:00Z"
+  },
+  "upgrade_url": "https://cqox.ai/pricing"
+}
+```
+
+#### 課金・メータリング
+
+**メータリング対象**
+```sql
+CREATE TABLE usage_metrics (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    metric_type VARCHAR(50),  -- 'job_run', 'storage_gb_day', 'api_call', 'figure_generation'
+    quantity FLOAT NOT NULL,
+    recorded_at TIMESTAMPTZ DEFAULT NOW(),
+    metadata JSONB
+);
+
+-- 日次集計（Celeryタスクで毎日実行）
+CREATE TABLE daily_usage_summary (
+    tenant_id UUID,
+    date DATE,
+    total_jobs INT,
+    total_api_calls BIGINT,
+    avg_storage_gb FLOAT,
+    total_figures_generated INT,
+    PRIMARY KEY (tenant_id, date)
+);
+```
+
+**料金プラン例**
+```yaml
+# pricing.yaml
+plans:
+  free:
+    price: 0
+    quotas:
+      jobs_per_day: 10
+      storage_gb: 5
+      api_calls_per_min: 60
+  pro:
+    price: 100000  # 10万円/月
+    quotas:
+      jobs_per_day: 100
+      storage_gb: 50
+      api_calls_per_min: 300
+    overages:
+      extra_job: 1000  # 1ジョブあたり1,000円
+      extra_gb_month: 2000  # 1GB/月あたり2,000円
+  enterprise:
+    price: 1000000  # 100万円/月
+    quotas:
+      jobs_per_day: 1000
+      storage_gb: 500
+      api_calls_per_min: 1000
+    custom: true
+```
+
+---
+
+### E. セキュリティ・コンプライアンス運用
+
+#### ロール・権限マッピング詳細
+
+**UI Role → API Permission マッピング**
+
+| UI Role | API Permissions | Accessible Endpoints |
+|---------|----------------|---------------------|
+| **viewer** | `console:read`, `policies:read`, `diagnostics:read` | GET /console/*, GET /policies, GET /diagnostics |
+| **analyst** | viewer + `models:write`, `policies:write`, `datasets:write` | POST /policies, POST /datasets, POST /models/train |
+| **admin** | analyst + `admin:*` | GET/POST/DELETE /admin/*, DELETE /users/{id} |
+
+**Permission Check実装**
+```python
+# backend/cqox/api/dependencies.py
+PERMISSION_MAP = {
+    "GET /api/v1/policies": ["policies:read"],
+    "POST /api/v1/policies": ["policies:write"],
+    "DELETE /api/v1/policies/{id}": ["policies:delete", "admin:all"],
+}
+
+def require_permission(required: List[str]):
+    def dependency(token: TokenData = Depends(get_current_user)):
+        user_permissions = set(token.permissions)
+        if not any(perm in user_permissions for perm in required):
+            raise HTTPException(403, detail=f"Missing permission: {required}")
+        return token
+    return Depends(dependency)
+```
+
+#### 監査ログスキーマ詳細
+
+**audit_logs テーブル拡張**
+```sql
+CREATE TABLE audit_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    tenant_id UUID NOT NULL,
+    user_id UUID,
+    action VARCHAR(100) NOT NULL,  -- 'READ_POLICY', 'CREATE_JOB', 'DELETE_USER'
+    resource_type VARCHAR(50),     -- 'policy', 'dataset', 'job', 'user'
+    resource_id UUID,
+    endpoint VARCHAR(255),         -- '/api/v1/policies/123'
+    method VARCHAR(10),            -- 'GET', 'POST', 'DELETE'
+    status_code INT,               -- 200, 403, 500
+    ip_address INET,
+    user_agent TEXT,
+    request_id UUID,               -- X-Request-ID header
+    details JSONB,                 -- { "policy_id": "...", "changes": {...} }
+    reason TEXT                    -- GDPRletetion理由など
+);
+
+CREATE INDEX idx_audit_logs_tenant_time ON audit_logs(tenant_id, timestamp DESC);
+CREATE INDEX idx_audit_logs_user ON audit_logs(user_id, timestamp DESC);
+CREATE INDEX idx_audit_logs_resource ON audit_logs(resource_type, resource_id);
+```
+
+**何を記録するか（詳細ルール）**
+- **READ操作**: 個客レベルデータのみログ（集計データは除外）
+- **WRITE操作**: すべてログ（誰が何をいつ作成・更新・削除したか）
+- **DELETE操作**: 削除前の状態をJSONBで保存
+- **GDPR削除**: 理由（reason）を必須記録
+
+**個客レベルデータの保存禁止ポリシー**
+```python
+# ポリシー: 個客レベルuplift/Δ¥は保存しない
+# × Bad: 個客IDと紐付けて保存
+# ○ Good: セグメント集計のみ保存
+
+# Bad Example (禁止)
+await db.execute("""
+    INSERT INTO individual_uplifts (customer_id, uplift, delta_revenue)
+    VALUES ($1, $2, $3)
+""", customer_id, uplift, delta_revenue)
+
+# Good Example (許可)
+segment_summary = {
+    "segment": "high_value_customers",
+    "count": 1523,
+    "avg_uplift": 0.23,
+    "total_delta_revenue": 450000,
+    "p25": 0.15,
+    "p50": 0.21,
+    "p75": 0.29
+}
+await db.execute("""
+    INSERT INTO segment_summaries (policy_id, segment_name, summary)
+    VALUES ($1, $2, $3)
+""", policy_id, segment_name, segment_summary)
+```
+
+#### キー管理・ローテーション
+
+**Vault パス構成**
+```
+secret/
+├── cqox/
+│   ├── prod/
+│   │   ├── database/
+│   │   │   ├── master_password
+│   │   │   └── read_replica_password
+│   │   ├── jwt/
+│   │   │   ├── private_key (RS256)
+│   │   │   └── public_key
+│   │   ├── api_keys/
+│   │   │   ├── wolfram_api_key
+│   │   │   └── smtp_password
+│   │   └── encryption/
+│   │       └── aes_256_key (field-level encryption)
+│   └── staging/
+│       └── ...
+```
+
+**自動ローテーション周期**
+```yaml
+rotation_policy:
+  jwt_signing_key: 90_days
+  database_passwords: 180_days
+  api_keys: 365_days
+  encryption_keys: never  # 手動ローテーションのみ（データ再暗号化必要）
+```
+
+**ローテーション手順（例: JWT鍵）**
+```bash
+# 1. 新しい鍵ペア生成
+openssl genrsa -out new_private.pem 4096
+openssl rsa -in new_private.pem -pubout -out new_public.pem
+
+# 2. Vaultに新鍵を追加（旧鍵は残す）
+vault kv put secret/cqox/prod/jwt/private_key_v2 value=@new_private.pem
+vault kv put secret/cqox/prod/jwt/public_key_v2 value=@new_public.pem
+
+# 3. アプリケーションを新鍵で起動（旧鍵も検証用に保持）
+# 4. 7日後、旧鍵で発行されたトークンが失効したら旧鍵削除
+```
+
+#### データマスキング・プレビュー
+
+**UI上のマスキングルール**
+```typescript
+// frontend/src/utils/masking.ts
+export function maskCustomerId(customerId: string, role: string): string {
+  if (role === 'admin') return customerId;  // admin は全表示
+  if (role === 'analyst') return customerId.slice(0, 4) + '****';  // 先頭4文字のみ
+  return '****';  // viewer は完全マスキング
+}
+
+export function maskEmail(email: string, role: string): string {
+  if (role === 'admin') return email;
+  const [local, domain] = email.split('@');
+  return `${local[0]}***@${domain}`;
+}
+```
+
+**サンプルデータダウンロード制限**
+```python
+# GET /api/datasets/{id}/preview
+@router.get("/{dataset_id}/preview")
+async def preview_dataset(
+    dataset_id: str,
+    limit: int = Query(100, le=1000),
+    user: TokenData = Depends(require_permission(["datasets:read"]))
+):
+    # 1. 最大1000行まで
+    # 2. PII列はマスキング
+    # 3. ダウンロードは監査ログに記録
+
+    data = await fetch_dataset(dataset_id, limit=min(limit, 1000))
+    masked_data = mask_pii_columns(data, user.roles)
+
+    await audit_log(
+        user_id=user.sub,
+        action="PREVIEW_DATASET",
+        resource_id=dataset_id,
+        details={"rows_returned": len(masked_data)}
+    )
+
+    return masked_data
+```
+
+---
+
+### F. SRE・運用
+
+#### SLO/SLI/エラーバジェット
+
+**定義されたSLO**
+
+| Service | SLI | SLO Target | Error Budget (30日) |
+|---------|-----|-----------|-------------------|
+| **API Success Rate** | `(2xx + 3xx) / total` | 99.5% | 0.5% = 216分 |
+| **API P95 Latency** | 95パーセンタイルレスポンス時間 | < 1秒 | - |
+| **Job Completion Rate** | `succeeded / (succeeded + failed)` | 99.0% | 1.0% |
+| **Job P95 Duration** | 重い学習ジョブの95パーセンタイル | < 5分 | - |
+
+**Prometheusメトリクス**
+```python
+# backend/cqox/metrics.py
+from prometheus_client import Counter, Histogram, Gauge
+
+# API成功率
+api_requests_total = Counter(
+    'cqox_api_requests_total',
+    'Total API requests',
+    ['method', 'endpoint', 'status_code']
+)
+
+# APIレイテンシ
+api_request_duration = Histogram(
+    'cqox_api_request_duration_seconds',
+    'API request duration',
+    ['method', 'endpoint'],
+    buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0]
+)
+
+# ジョブ完了率
+job_completion_total = Counter(
+    'cqox_job_completion_total',
+    'Total job completions',
+    ['status']  # succeeded, failed, timeout
+)
+
+# ジョブ実行時間
+job_duration = Histogram(
+    'cqox_job_duration_seconds',
+    'Job execution duration',
+    ['job_type'],  # train_model, run_diagnostics, etc.
+    buckets=[1, 5, 10, 30, 60, 300, 600, 1800]
+)
+```
+
+**エラーバジェット消費アラート**
+```yaml
+# prometheus/alerts/slo.yaml
+groups:
+  - name: slo_alerts
+    rules:
+      - alert: ErrorBudgetBurn
+        expr: |
+          (
+            1 - (sum(rate(cqox_api_requests_total{status_code=~"2.."}[30d]))
+                 / sum(rate(cqox_api_requests_total[30d])))
+          ) > 0.005
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API error budget exceeded (> 0.5%)"
+          description: "Current error rate: {{ $value | humanizePercentage }}"
+```
+
+#### Runbook・インシデント対応
+
+**主要インシデントシナリオ**
+
+**1. ジョブキューが溜まる**
+```markdown
+### Symptom
+- Celery queue depth > 1000
+- Job wait time > 30分
+
+### Diagnosis
+1. Check worker status: `celery -A cqox inspect active`
+2. Check RabbitMQ queue depth: `rabbitmqctl list_queues`
+3. Check worker logs for errors
+
+### Resolution
+- Immediate: Scale up Celery workers (HPA or manual)
+  ```bash
+  kubectl scale deployment celery-worker --replicas=20
+  ```
+- Root cause:
+  - If Wolfram timeout → Increase timeout / Add retry
+  - If memory leak → Restart workers
+  - If traffic spike → Review autoscaling policy
+```
+
+**2. Redis障害**
+```markdown
+### Symptom
+- Cache hit rate drops to 0%
+- Rate limiting fails
+- Session validation errors
+
+### Diagnosis
+1. Check Redis cluster status: `redis-cli cluster info`
+2. Check Redis logs: `kubectl logs -n data redis-0`
+3. Check network: `kubectl exec -it backend-0 -- redis-cli ping`
+
+### Resolution
+- Immediate:
+  - Failover to replica: AWS ElastiCache auto-failover (~2min)
+  - API continues with degraded performance (direct DB access)
+- Manual:
+  ```bash
+  # Force manual failover
+  redis-cli -c cluster failover
+  ```
+```
+
+**3. Wolfram Cloudタイムアウト**
+```markdown
+### Symptom
+- Job failures with "WolframTimeoutError"
+- Grafana: Wolfram API P95 latency > 60s
+
+### Diagnosis
+1. Check Wolfram Cloud status: https://status.wolfram.com
+2. Check our API key quota: Wolfram dashboard
+3. Review recent job sizes (large datasets?)
+
+### Resolution
+- Immediate:
+  - Return cached results for existing policies
+  - Defer new jobs to queue for retry (max 3 retries)
+- Mitigation:
+  - Increase timeout: 30s → 90s
+  - Reduce dataset size sent to Wolfram
+  - Contact Wolfram support if persistent
+```
+
+**Slack/PagerDuty通知設定**
+```yaml
+# alertmanager/config.yaml
+route:
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'slack-critical'
+  routes:
+    - match:
+        severity: critical
+      receiver: 'pagerduty'
+    - match:
+        severity: warning
+      receiver: 'slack-warnings'
+
+receivers:
+  - name: 'pagerduty'
+    pagerduty_configs:
+      - service_key: '<pagerduty_integration_key>'
+  - name: 'slack-critical'
+    slack_configs:
+      - api_url: '<slack_webhook_url>'
+        channel: '#cqox-alerts-critical'
+        title: '🚨 {{ .GroupLabels.alertname }}'
+  - name: 'slack-warnings'
+    slack_configs:
+      - api_url: '<slack_webhook_url>'
+        channel: '#cqox-alerts-warnings'
+        title: '⚠️  {{ .GroupLabels.alertname }}'
+```
+
+#### ローリングアップデート・ロールバック
+
+**ArgoCD Rollout戦略**
+```yaml
+# kubernetes/rollout.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: cqox-backend
+spec:
+  replicas: 10
+  strategy:
+    canary:
+      steps:
+        - setWeight: 10    # 10%のトラフィックを新バージョンへ
+        - pause: {duration: 5m}
+        - setWeight: 30
+        - pause: {duration: 10m}
+        - setWeight: 50
+        - pause: {duration: 10m}
+        - setWeight: 100   # 全トラフィックを新バージョンへ
+      analysis:
+        templates:
+          - templateName: error-rate-check
+        args:
+          - name: error-rate-threshold
+            value: "0.01"  # 1%以上のエラー率でロールバック
+  revisionHistoryLimit: 5  # 過去5バージョン保持
+```
+
+**自動ロールバック条件**
+```yaml
+# kubernetes/analysis-template.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: error-rate-check
+spec:
+  metrics:
+    - name: error-rate
+      interval: 1m
+      successCondition: result < 0.01
+      failureLimit: 3
+      provider:
+        prometheus:
+          address: http://prometheus:9090
+          query: |
+            sum(rate(cqox_api_requests_total{status_code=~"5.."}[5m]))
+            / sum(rate(cqox_api_requests_total[5m]))
+```
+
+**手動ロールバック手順**
+```bash
+# 1. 現在のバージョン確認
+kubectl argo rollouts status cqox-backend
+
+# 2. ロールバック（前バージョンへ）
+kubectl argo rollouts undo cqox-backend
+
+# 3. 特定のリビジョンへロールバック
+kubectl argo rollouts undo cqox-backend --to-revision=3
+
+# 4. ロールバック状況確認
+kubectl argo rollouts get rollout cqox-backend --watch
+```
+
+**ML/Policy エンジンのカナリアリリースポリシー**
+- **新しい推定器**: 必ず10% canaryから開始
+- **Policy エンジン更新**: shadow mode（本番に影響させずログのみ）で1週間検証
+- **ロールバック可能性**: 過去5バージョンのモデルアーティファクトをS3に保持
+
+---
+
+### G. MLOps・因果モデル運用
+
+#### モデル・Policyレジストリ
+
+**レジストリスキーマ**
+```sql
+CREATE TABLE model_registry (
+    id UUID PRIMARY KEY,
+    policy_id UUID NOT NULL,
+    version VARCHAR(20) NOT NULL,  -- 'v1.0.0', 'v1.1.0'
+    estimator_type VARCHAR(50),
+    hyperparameters JSONB,
+    training_dataset_id UUID,
+    dataset_schema_version VARCHAR(10),
+    trained_at TIMESTAMPTZ,
+    trained_by UUID,  -- user_id
+    s3_artifact_key VARCHAR(500),
+    performance_metrics JSONB,  -- {"cas_score": 78.5, "auc": 0.85}
+    status VARCHAR(20),  -- 'experimental', 'staging', 'production', 'retired'
+    promoted_at TIMESTAMPTZ,
+    UNIQUE(policy_id, version)
+);
+
+-- Example
+INSERT INTO model_registry VALUES (
+    gen_random_uuid(),
+    'policy-abc',
+    'v1.2.0',
+    'LinearDML',
+    '{"alpha": 0.01, "max_iter": 1000}',
+    'dataset-123',
+    '2.1',
+    '2025-01-15 10:30:00',
+    'user-analyst-1',
+    's3://cqox-models/policy-abc/v1.2.0/model.pkl',
+    '{"cas_score": 82.3, "refutation_passed": true}',
+    'production',
+    '2025-01-16 09:00:00'
+);
+```
+
+**バージョニングポリシー**
+- **Semantic Versioning**: `v{major}.{minor}.{patch}`
+  - major: 推定器タイプ変更（DML → Causal Forest）
+  - minor: ハイパーパラメータ重要変更
+  - patch: 軽微な調整・バグ修正
+- **Promotion Flow**: experimental → staging → production
+- **Production制約**: 同時に1バージョンのみproduction（Blue-Green）
+
+#### Shadow評価・オフライン検証
+
+**Shadow Mode実装**
+```python
+# 新しいモデルをshadow modeで実行（本番トラフィックに影響なし）
+@router.post("/policies/{policy_id}/shadow-eval")
+async def shadow_evaluate(
+    policy_id: str,
+    new_model_version: str,
+    user: TokenData = Depends(require_permission(["admin:all"]))
+):
+    # 1. 本番トラフィックログをS3から取得
+    production_data = await s3.get_object(
+        Bucket='cqox-logs',
+        Key=f'traffic/{policy_id}/last_7_days.parquet'
+    )
+
+    # 2. 現行モデル（production）で予測
+    current_model = await get_production_model(policy_id)
+    current_predictions = current_model.predict(production_data)
+
+    # 3. 新モデル（shadow）で予測
+    shadow_model = await load_model_version(policy_id, new_model_version)
+    shadow_predictions = shadow_model.predict(production_data)
+
+    # 4. 差分を計算・記録
+    delta_metrics = compare_predictions(current_predictions, shadow_predictions)
+
+    await db.execute("""
+        INSERT INTO shadow_eval_results (policy_id, shadow_version, delta_metrics)
+        VALUES ($1, $2, $3)
+    """, policy_id, new_model_version, delta_metrics)
+
+    return {"status": "shadow_eval_completed", "delta": delta_metrics}
+```
+
+**評価メトリクス**
+```json
+{
+  "delta_cas_score": -1.2,
+  "delta_avg_uplift": +0.03,
+  "prediction_correlation": 0.92,
+  "divergence_rate": 0.08,
+  "recommended_action": "promote_to_staging"
+}
+```
+
+#### データドリフト・モデル劣化検知
+
+**Input Feature分布監視**
+```sql
+-- 日次でfeature分布を記録
+CREATE TABLE feature_distributions (
+    id UUID PRIMARY KEY,
+    policy_id UUID NOT NULL,
+    feature_name VARCHAR(100),
+    date DATE NOT NULL,
+    mean FLOAT,
+    std FLOAT,
+    p25 FLOAT,
+    p50 FLOAT,
+    p75 FLOAT,
+    recorded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ドリフト検知用にベースライン期間の統計を保存
+CREATE TABLE baseline_distributions (
+    policy_id UUID,
+    feature_name VARCHAR(100),
+    baseline_period_start DATE,
+    baseline_period_end DATE,
+    mean FLOAT,
+    std FLOAT,
+    PRIMARY KEY (policy_id, feature_name)
+);
+```
+
+**ドリフト検知ロジック（Celery定期タスク）**
+```python
+from scipy.stats import ks_2samp
+
+@celery.task
+async def detect_drift():
+    policies = await get_active_policies()
+
+    for policy in policies:
+        # 1. ベースライン分布を取得
+        baseline = await get_baseline_distribution(policy.id)
+
+        # 2. 直近7日間の分布を取得
+        recent = await get_recent_distribution(policy.id, days=7)
+
+        # 3. Kolmogorov-Smirnov検定
+        for feature in baseline.keys():
+            statistic, pvalue = ks_2samp(baseline[feature], recent[feature])
+
+            if pvalue < 0.01:  # 有意水準1%
+                # ドリフト検出！
+                await send_alert(
+                    severity="warning",
+                    message=f"Feature drift detected: {feature} in policy {policy.id}",
+                    details={"ks_statistic": statistic, "p_value": pvalue}
+                )
+
+                # Grafana annotation
+                await grafana.create_annotation(
+                    text=f"Drift detected: {feature}",
+                    tags=["drift", policy.id]
+                )
+```
+
+**モデル性能劣化検知**
+```python
+@celery.task
+async def detect_model_degradation():
+    # 1. 直近30日間のCASスコア推移を取得
+    cas_trend = await db.fetch("""
+        SELECT date, avg_cas_score
+        FROM daily_model_performance
+        WHERE policy_id = $1 AND date >= CURRENT_DATE - 30
+        ORDER BY date
+    """, policy_id)
+
+    # 2. 線形回帰で傾き検出
+    from sklearn.linear_model import LinearRegression
+    X = np.array([i for i in range(len(cas_trend))]).reshape(-1, 1)
+    y = np.array([row['avg_cas_score'] for row in cas_trend])
+
+    model = LinearRegression().fit(X, y)
+    slope = model.coef_[0]
+
+    # 3. 負の傾き（劣化傾向）を検出
+    if slope < -0.5:  # 月間で-15ポイント以上低下
+        await send_alert(
+            severity="warning",
+            message=f"Model degradation detected for policy {policy_id}",
+            details={"monthly_decline": slope * 30}
+        )
+```
+
+**アラート閾値**
+- **Feature Drift**: p-value < 0.01 → Warning
+- **CAS Score下降**: 月間 -10ポイント以上 → Warning, -20ポイント以上 → Critical
+- **Uplift変化**: ベースラインから±30%以上 → Investigation required
+
+---
+
+### H. フロントエンド分散設計
+
+#### ページング・ストリーミング設計
+
+**サーバーサイドページング API**
+```python
+# GET /api/policies?page=2&limit=50
+@router.get("/policies")
+async def list_policies(
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, le=100),
+    user: TokenData = Depends(get_current_user)
+):
+    offset = (page - 1) * limit
+
+    policies = await db.fetch("""
+        SELECT * FROM policies
+        WHERE tenant_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+    """, user.tenant_id, limit, offset)
+
+    total = await db.fetchval("SELECT COUNT(*) FROM policies WHERE tenant_id = $1", user.tenant_id)
+
+    return {
+        "items": policies,
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "pages": math.ceil(total / limit)
+        }
+    }
+```
+
+**Cursor-based Pagination（大規模データ向け）**
+```python
+# GET /api/recourse/individual?cursor=abc123&limit=100
+@router.get("/recourse/individual")
+async def list_individual_recourse(
+    cursor: Optional[str] = None,
+    limit: int = Query(100, le=1000)
+):
+    if cursor:
+        decoded_cursor = base64.b64decode(cursor).decode()
+        last_id, last_timestamp = decoded_cursor.split('|')
+    else:
+        last_id, last_timestamp = None, None
+
+    query = """
+        SELECT * FROM recourse_results
+        WHERE (created_at, id) > ($1, $2)
+        ORDER BY created_at, id
+        LIMIT $3
+    """
+
+    results = await db.fetch(query, last_timestamp, last_id, limit)
+
+    next_cursor = None
+    if len(results) == limit:
+        last_item = results[-1]
+        next_cursor = base64.b64encode(
+            f"{last_item['id']}|{last_item['created_at']}".encode()
+        ).decode()
+
+    return {
+        "items": results,
+        "next_cursor": next_cursor
+    }
+```
+
+**React Query 無限スクロール**
+```typescript
+// frontend/src/hooks/usePolicies.ts
+import { useInfiniteQuery } from '@tanstack/react-query'
+
+export function usePoliciesInfinite() {
+  return useInfiniteQuery({
+    queryKey: ['policies', 'infinite'],
+    queryFn: ({ pageParam = 1 }) =>
+      api.get(`/policies?page=${pageParam}&limit=50`),
+    getNextPageParam: (lastPage) => {
+      const { page, pages } = lastPage.pagination
+      return page < pages ? page + 1 : undefined
+    },
+    staleTime: 5 * 60 * 1000, // 5分
+  })
+}
+
+// Component
+function PolicyList() {
+  const { data, fetchNextPage, hasNextPage, isLoading } = usePoliciesInfinite()
+
+  return (
+    <div>
+      {data?.pages.map((page) =>
+        page.items.map((policy) => <PolicyCard key={policy.id} {...policy} />)
+      )}
+      {hasNextPage && <button onClick={fetchNextPage}>Load More</button>}
+    </div>
+  )
+}
+```
+
+#### オンライン・オフライン状態管理
+
+**Network Error時のDegradation**
+```typescript
+// frontend/src/lib/api.ts
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.code === 'ERR_NETWORK' || error.code === 'ECONNABORTED') {
+      // ネットワークエラー → キャッシュから返す
+      const cachedData = await getCachedResponse(error.config.url)
+      if (cachedData) {
+        return {
+          ...error.config,
+          data: cachedData,
+          headers: { 'X-From-Cache': 'true' }
+        }
+      }
+
+      // キャッシュもない → ユーザーに通知
+      toast.error('Network error. Showing last known data.')
+      throw new NetworkUnavailableError()
+    }
+
+    if (error.response?.status === 503) {
+      // サービス一時停止 → 静的メッセージ表示
+      return {
+        data: {
+          status: 'unavailable',
+          message: 'Service temporarily unavailable. Please try again later.'
+        }
+      }
+    }
+
+    throw error
+  }
+)
+```
+
+**Service Worker でのオフライン対応**
+```javascript
+// frontend/public/service-worker.js
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse
+      }
+
+      return fetch(event.request).catch(() => {
+        // Fetch失敗 → フォールバック
+        if (event.request.url.includes('/api/')) {
+          return new Response(
+            JSON.stringify({ error: 'offline', cached: false }),
+            { headers: { 'Content-Type': 'application/json' } }
+          )
+        }
+      })
+    })
+  )
+})
+```
+
+**React Query のオフライン対応**
+```typescript
+// frontend/src/lib/queryClient.ts
+import { QueryClient } from '@tanstack/react-query'
+import { persistQueryClient } from '@tanstack/react-query-persist-client'
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      cacheTime: 24 * 60 * 60 * 1000, // 24時間
+      networkMode: 'offlineFirst', // オフライン時はキャッシュ優先
+    },
+  },
+})
+
+const persister = createSyncStoragePersister({
+  storage: window.localStorage,
+})
+
+persistQueryClient({
+  queryClient,
+  persister,
+  maxAge: 24 * 60 * 60 * 1000,
+})
+```
+
+#### URL ベース状態同期
+
+**URL State Management**
+```typescript
+// frontend/src/pages/PolicyLab.tsx
+import { useSearchParams } from 'react-router-dom'
+
+export function PolicyLab() {
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // URL から状態を復元
+  const currentTab = searchParams.get('tab') || 'overview'
+  const coverage = parseFloat(searchParams.get('coverage') || '0.5')
+  const selectedPolicyId = searchParams.get('policy_id')
+
+  const updateTab = (newTab: string) => {
+    setSearchParams((prev) => {
+      prev.set('tab', newTab)
+      return prev
+    })
+  }
+
+  const updateCoverage = (newCoverage: number) => {
+    setSearchParams((prev) => {
+      prev.set('coverage', newCoverage.toString())
+      return prev
+    })
+  }
+
+  // URLが共有可能 → 同僚が同じ状態で開ける
+  const shareableUrl = `${window.location.origin}/policy-lab?tab=${currentTab}&coverage=${coverage}&policy_id=${selectedPolicyId}`
+
+  return (
+    <div>
+      <Tabs value={currentTab} onChange={updateTab}>
+        <Tab value="overview">Overview</Tab>
+        <Tab value="compare">Compare</Tab>
+        <Tab value="diagnostics">Diagnostics</Tab>
+      </Tabs>
+
+      <CoverageSlider value={coverage} onChange={updateCoverage} />
+
+      {currentTab === 'compare' && (
+        <PolicyComparison coverage={coverage} policyId={selectedPolicyId} />
+      )}
+
+      <button onClick={() => navigator.clipboard.writeText(shareableUrl)}>
+        📋 Copy Shareable Link
+      </button>
+    </div>
+  )
+}
+```
+
+**Recourse Panel の URL 状態**
+```
+/recourse?unit_id=customer-12345&intervention=increase_spend&target_outcome=conversion&coverage=0.3
+```
+
+**Experiment Design の URL 状態**
+```
+/experiments/design?test_type=ab&metric=revenue&mde=0.05&power=0.8&allocation=0.5
+```
+
+---
+
+## まとめ
+
+本章では、エンタープライズ級システムとして必須となる以下の仕様を明文化しました：
+
+### A. 分散ジョブ実行
+- Idempotency-Key によるジョブ重複防止
+- Celery/RabbitMQ の指数バックオフリトライ + DLQ
+- 状態遷移の一貫性保証（DB → Redis → API）
+- Redis分散ロックによる競合制御
+- Queue分離とSLA保証
+
+### B. データ管理
+- TimescaleDB/S3 パーティショニング戦略
+- Data Contract バージョニングと run との紐付け
+- PII マスキング・GDPR削除ポリシー
+- Lineage テーブルによる系統追跡
+
+### C. インフラ可用性
+- Multi-AZ構成とフェイルオーバー
+- 障害ドメイン別のデグレードモード
+- RPO 5分/RTO 15分のDR戦略
+
+### D. マルチテナントSaaS
+- tenant_id 分離 + Row-Level Security
+- テナント別クォータとレート制限
+- メータリング・課金設計
+
+### E. セキュリティ運用
+- Role → Permission マッピングテーブル
+- 監査ログ詳細スキーマ（個客レベルは集計のみ）
+- Vault キー管理とローテーション手順
+
+### F. SRE運用
+- SLO/SLI定義とエラーバジェット
+- Runbook（ジョブキュー/Redis/Wolfram障害時）
+- ArgoCD Canary Rollout + 自動ロールバック
+
+### G. MLOps
+- モデルレジストリとバージョン管理
+- Shadow評価によるオフライン検証
+- データドリフト・モデル劣化検知
+
+### H. フロントエンド分散
+- Cursor-based Pagination と無限スクロール
+- ネットワークエラー時のキャッシュフォールバック
+- URL状態同期による再現性担保
