@@ -40,7 +40,7 @@ async def get_delta_yen_summary(
     - 平均Δ¥、最大Δ¥、最小Δ¥
     - ベストシナリオ（最大Δ¥のDecisionCard）
     """
-    from cqox.core.models import Decision
+    from cqox.database.models import Decision
 
     # 期間フィルタ
     since = datetime.utcnow() - timedelta(days=period_days)
@@ -95,7 +95,7 @@ async def get_delta_yen_history(
 
     **用途**: Decision Console の棒グラフ表示
     """
-    from cqox.core.models import Decision
+    from cqox.database.models import Decision
 
     # 週次集計（簡易実装: 7日ごと）
     history = []
@@ -141,7 +141,7 @@ async def get_verdict_distribution(
 
     **用途**: Decision Console の円グラフ表示
     """
-    from cqox.core.models import Decision
+    from cqox.database.models import Decision
 
     since = datetime.utcnow() - timedelta(days=period_days)
 

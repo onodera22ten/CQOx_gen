@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc, asc
 from typing import Optional, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 import logging
 
 from cqox.api.models.v1.decision_card import (
@@ -15,24 +15,13 @@ from cqox.api.models.v1.decision_card import (
     DecisionCardList,
     DecisionCardCreate
 )
-# Temporary: Use simplified dependencies until proper auth is set up
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from cqox.core.database import get_db
+from cqox.core.auth import get_current_user
+from cqox.api.models.auth import User
 
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/results", tags=["v1-results"])
-
-
-async def get_db():
-    """Temporary DB session (to be replaced with proper implementation)"""
-    return None
-
-async def get_current_user():
-    """Temporary user (to be replaced with proper auth)"""
-    class TempUser:
-        tenant_id = "temp-tenant"
-    return TempUser()
 
 @router.post("", response_model=DecisionCard, status_code=201)
 async def create_decision_card(
@@ -49,8 +38,9 @@ async def create_decision_card(
 
     # DecisionCardを作成
     decision = Decision(
-        policy_id=UUID(request.policy_id),
-        scenario_id=UUID(request.scenario_id) if request.scenario_id else None,
+        id=str(uuid4()),
+        policy_id=str(UUID(request.policy_id)),
+        scenario_id=str(UUID(request.scenario_id)) if request.scenario_id else None,
         scenario_name=request.scenario_name,
         delta_yen=request.delta_yen,
         delta_yen_ci_low=request.delta_yen_ci_low,
@@ -93,7 +83,7 @@ async def list_decision_cards(
     **デフォルト**: Δ¥ランキング順（降順）
     **フィルタ**: verdict（Go/Canary/Hold）、channel、segment
     """
-    from cqox.core.models import Decision
+    from cqox.database.models import Decision
 
     # クエリ構築
     query = select(Decision).where(Decision.tenant_id == current_user.tenant_id)
@@ -144,7 +134,7 @@ async def get_decision_card(
     """
     DecisionCard詳細取得
     """
-    from cqox.core.models import Decision
+    from cqox.database.models import Decision
 
     query = select(Decision).where(
         Decision.id == UUID(decision_id),
@@ -171,7 +161,7 @@ async def delete_decision_card(
 
     **権限**: Admin または作成者のみ
     """
-    from cqox.core.models import Decision
+    from cqox.database.models import Decision
 
     query = select(Decision).where(
         Decision.id == UUID(decision_id),
