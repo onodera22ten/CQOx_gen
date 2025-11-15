@@ -16,9 +16,8 @@ from cqox.api.models.v1.decision_card import (
     VerdictDistribution,
     DecisionCard
 )
-from cqox.core.database import get_db
-from cqox.core.auth import get_current_user
-from cqox.api.models.auth import User
+from cqox.database.connection import get_db
+from cqox.auth.dependencies import get_current_user
 
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,7 @@ router = APIRouter(prefix="/api/v1/console", tags=["v1-console"])
 async def get_delta_yen_summary(
     period_days: int = Query(7, ge=1, le=365, description="集計期間（日数）"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Δ¥サマリー取得（Decision Console用）
@@ -55,7 +54,7 @@ async def get_delta_yen_summary(
         func.max(Decision.delta_yen).label("best_delta_yen"),
         func.min(Decision.delta_yen).label("worst_delta_yen")
     ).where(
-        Decision.tenant_id == current_user.tenant_id,
+        Decision.tenant_id == current_user.get("tenant_id", "default_tenant"),
         Decision.created_at >= since
     )
 
@@ -64,7 +63,7 @@ async def get_delta_yen_summary(
 
     # ベストシナリオ取得
     best_query = select(Decision).where(
-        Decision.tenant_id == current_user.tenant_id,
+        Decision.tenant_id == current_user.get("tenant_id", "default_tenant"),
         Decision.created_at >= since
     ).order_by(desc(Decision.delta_yen)).limit(1)
 
@@ -88,7 +87,7 @@ async def get_delta_yen_history(
     period: Literal["week", "month"] = Query("week", description="集計期間単位"),
     weeks: int = Query(6, ge=1, le=52, description="週数（週単位の場合）"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Δ¥履歴取得（週次）
@@ -109,7 +108,7 @@ async def get_delta_yen_history(
             func.avg(Decision.delta_yen).label("avg_delta_yen"),
             func.count(Decision.id).label("decision_count")
         ).where(
-            Decision.tenant_id == current_user.tenant_id,
+            Decision.tenant_id == current_user.get("tenant_id", "default_tenant"),
             Decision.created_at >= week_start,
             Decision.created_at < week_end
         )
@@ -134,7 +133,7 @@ async def get_delta_yen_history(
 async def get_verdict_distribution(
     period_days: int = Query(7, ge=1, le=365, description="集計期間（日数）"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     判定内訳取得（Go/Canary/Hold）
@@ -151,7 +150,7 @@ async def get_verdict_distribution(
         func.count().filter(Decision.verdict == "Hold").label("hold"),
         func.count(Decision.id).label("total")
     ).where(
-        Decision.tenant_id == current_user.tenant_id,
+        Decision.tenant_id == current_user.get("tenant_id", "default_tenant"),
         Decision.created_at >= since
     )
 

@@ -15,9 +15,8 @@ from cqox.api.models.v1.decision_card import (
     DecisionCardList,
     DecisionCardCreate
 )
-from cqox.core.database import get_db
-from cqox.core.auth import get_current_user
-from cqox.api.models.auth import User
+from cqox.database.connection import get_db
+from cqox.auth.dependencies import get_current_user
 
 
 logger = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ async def create_decision_card(
         quality_scores=request.quality_scores.dict() if request.quality_scores else None,
         scenario_spec=request.scenario_spec.dict(),
         estimator_results=request.estimator_results.dict(),
-        tenant_id=current_user.tenant_id
+        tenant_id=current_user.get("tenant_id", "default_tenant")
     )
 
     db.add(decision)
@@ -75,7 +74,7 @@ async def list_decision_cards(
     page: int = Query(1, ge=1, description="ページ番号"),
     page_size: int = Query(10, ge=1, le=100, description="ページサイズ"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     DecisionCard一覧取得
@@ -86,7 +85,8 @@ async def list_decision_cards(
     from cqox.database.models import Decision
 
     # クエリ構築
-    query = select(Decision).where(Decision.tenant_id == current_user.tenant_id)
+    tenant_id = current_user.get("tenant_id", "default_tenant")
+    query = select(Decision).where(Decision.tenant_id == tenant_id)
 
     # フィルタ適用
     if verdict:
@@ -129,7 +129,7 @@ async def list_decision_cards(
 async def get_decision_card(
     decision_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     DecisionCard詳細取得
@@ -138,7 +138,7 @@ async def get_decision_card(
 
     query = select(Decision).where(
         Decision.id == UUID(decision_id),
-        Decision.tenant_id == current_user.tenant_id
+        Decision.tenant_id == current_user.get("tenant_id", "default_tenant")
     )
 
     result = await db.execute(query)
@@ -154,7 +154,7 @@ async def get_decision_card(
 async def delete_decision_card(
     decision_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     DecisionCard削除
@@ -165,7 +165,7 @@ async def delete_decision_card(
 
     query = select(Decision).where(
         Decision.id == UUID(decision_id),
-        Decision.tenant_id == current_user.tenant_id
+        Decision.tenant_id == current_user.get("tenant_id", "default_tenant")
     )
 
     result = await db.execute(query)
