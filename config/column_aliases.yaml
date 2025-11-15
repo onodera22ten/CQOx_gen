@@ -1,0 +1,62 @@
+# Column Aliases Configuration
+# Additional aliases for semantic columns (supplements data_contract.yaml)
+
+user_id:
+  - user_id
+  - uid
+  - karte_user_id
+  - click_user_id
+  - customer_id
+  - member_id
+  - userId
+  - customerId
+
+treatment:
+  - treatment
+  - is_treated
+  - flag_t
+  - message_send
+  - campaign_flag
+  - treated
+  - test_group
+  - variant
+
+time:
+  - time
+  - ts
+  - event_time
+  - timestamp
+  - created_at
+  - date
+  - datetime
+  - event_date
+
+y:
+  - y
+  - outcome
+  - purchase
+  - revenue
+  - conversion
+  - target
+  - sales
+  - gmv
+
+cost:
+  - cost
+  - marketing_cost
+  - campaign_cost
+  - spend
+  - cost_marketing
+
+margin:
+  - margin
+  - profit
+  - gross_margin
+  - net_profit
+
+channel:
+  - channel
+  - marketing_channel
+  - source
+  - medium
+  - campaign_channel

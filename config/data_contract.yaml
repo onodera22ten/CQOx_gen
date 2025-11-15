@@ -1,0 +1,180 @@
+# Data Contract: Canonical Schema Definition
+# This defines the "semantic columns" that all uploaded data must map to
+
+semantic_columns:
+  # Core identifiers
+  unit_id:
+    description: "Unique identifier for the unit of analysis (user, customer, etc.)"
+    type: string
+    required: true
+    aliases:
+      - user_id
+      - uid
+      - customer_id
+      - karte_user_id
+      - click_user_id
+      - member_id
+
+  time:
+    description: "Timestamp of the event"
+    type: datetime
+    required: true
+    aliases:
+      - timestamp
+      - ts
+      - event_time
+      - created_at
+      - date
+
+  # Treatment and outcome
+  treatment:
+    description: "Treatment assignment (binary or categorical)"
+    type: categorical
+    required: true
+    aliases:
+      - is_treated
+      - flag_t
+      - message_send
+      - campaign_flag
+      - treated
+
+  y:
+    description: "Primary outcome variable"
+    type: numeric
+    required: true
+    aliases:
+      - outcome
+      - revenue
+      - purchase
+      - conversion
+      - target
+
+  # Causal inference specific
+  Z_instrument:
+    description: "Instrumental variable(s) for causal identification"
+    type: numeric
+    required: false
+    aliases:
+      - instrument
+      - iv
+      - randomization
+
+  r_running:
+    description: "Running variable for regression discontinuity design"
+    type: numeric
+    required: false
+    aliases:
+      - running_var
+      - forcing_var
+      - score
+
+  # Business metrics
+  cost:
+    description: "Cost of treatment/campaign"
+    type: numeric
+    required: false
+    aliases:
+      - marketing_cost
+      - campaign_cost
+      - spend
+
+  margin:
+    description: "Profit margin"
+    type: numeric
+    required: false
+    aliases:
+      - profit
+      - gross_margin
+
+  # Covariates (X_*)
+  X_age:
+    description: "Age of the user"
+    type: numeric
+    required: false
+    aliases:
+      - age
+      - user_age
+
+  X_gender:
+    description: "Gender of the user"
+    type: categorical
+    required: false
+    aliases:
+      - gender
+      - sex
+
+  X_region:
+    description: "Geographic region"
+    type: categorical
+    required: false
+    aliases:
+      - region
+      - location
+      - prefecture
+      - state
+
+  X_member_rank:
+    description: "Membership tier/rank"
+    type: categorical
+    required: false
+    aliases:
+      - member_rank
+      - tier
+      - loyalty_level
+
+  X_rfm_recency:
+    description: "RFM: Recency score"
+    type: numeric
+    required: false
+    aliases:
+      - recency
+      - last_purchase_days
+
+  X_rfm_frequency:
+    description: "RFM: Frequency score"
+    type: numeric
+    required: false
+    aliases:
+      - frequency
+      - purchase_count
+
+  X_rfm_monetary:
+    description: "RFM: Monetary score"
+    type: numeric
+    required: false
+    aliases:
+      - monetary
+      - total_spent
+      - ltv
+
+  # Channel
+  channel:
+    description: "Marketing channel"
+    type: categorical
+    required: false
+    aliases:
+      - marketing_channel
+      - source
+      - medium
+
+# Type validation rules
+type_rules:
+  numeric:
+    - int
+    - float
+    - int64
+    - float64
+  categorical:
+    - str
+    - object
+    - category
+  datetime:
+    - datetime64
+    - object  # Will attempt to parse
+
+# Validation thresholds
+validation:
+  max_missing_rate: 0.1  # Max 10% missing values for required columns
+  max_type_error_rate: 0.01  # Max 1% type conversion errors
+  min_unique_values_categorical: 2
+  max_unique_values_categorical: 1000
