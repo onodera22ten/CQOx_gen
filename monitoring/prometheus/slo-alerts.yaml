@@ -1,0 +1,376 @@
+---
+# Prometheus Alert Rules for CQOx SLO/SLI Monitoring
+# Based on Google SRE best practices
+
+groups:
+  # ========================================================================
+  # SLO: API Availability (99.5% success rate)
+  # ========================================================================
+  - name: slo_api_availability
+    interval: 30s
+    rules:
+      # SLI: API success rate (non-5xx responses)
+      - record: sli:api_success_rate:ratio_rate1m
+        expr: |
+          sum(rate(cqox_api_requests_total{status_code!~"5.."}[1m])) by (service)
+          /
+          sum(rate(cqox_api_requests_total[1m])) by (service)
+
+      - record: sli:api_success_rate:ratio_rate5m
+        expr: |
+          sum(rate(cqox_api_requests_total{status_code!~"5.."}[5m])) by (service)
+          /
+          sum(rate(cqox_api_requests_total[5m])) by (service)
+
+      - record: sli:api_success_rate:ratio_rate30m
+        expr: |
+          sum(rate(cqox_api_requests_total{status_code!~"5.."}[30m])) by (service)
+          /
+          sum(rate(cqox_api_requests_total[30m])) by (service)
+
+      # Error budget = 1 - SLO = 1 - 0.995 = 0.005 (0.5%)
+      # Alert: Fast burn (1m window) - burning 10x error budget
+      - alert: ErrorBudgetBurnRateFast
+        expr: |
+          sli:api_success_rate:ratio_rate1m < 0.95
+          and
+          sum(rate(cqox_api_requests_total[1m])) by (service) > 1
+        for: 1m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "Fast error budget burn ({{ $labels.service }})"
+          description: |
+            API success rate is {{ $value | humanizePercentage }} over last 1 minute.
+            This is burning error budget at 10x the acceptable rate.
+
+            Current: {{ $value | humanizePercentage }}
+            Target SLO: 99.5%
+            Error budget: 0.5%
+
+      # Alert: Slow burn (30m window) - sustained degradation
+      - alert: ErrorBudgetBurnRateSlow
+        expr: |
+          sli:api_success_rate:ratio_rate30m < 0.985
+        for: 5m
+        labels:
+          severity: warning
+          slo: availability
+        annotations:
+          summary: "Slow error budget burn ({{ $labels.service }})"
+          description: |
+            API success rate is {{ $value | humanizePercentage }} over last 30 minutes.
+            Sustained degradation is consuming error budget.
+
+            Current: {{ $value | humanizePercentage }}
+            Target SLO: 99.5%
+
+      # Alert: Error budget exhausted (monthly)
+      - alert: ErrorBudgetExhausted
+        expr: |
+          (1 - (sum(rate(cqox_api_requests_total{status_code!~"5.."}[30d]))
+                / sum(rate(cqox_api_requests_total[30d])))) > 0.005
+        for: 5m
+        labels:
+          severity: critical
+          slo: availability
+        annotations:
+          summary: "Monthly error budget exhausted"
+          description: |
+            Error budget for the month has been exhausted.
+            No more incidents allowed until budget resets.
+
+            Current error rate: {{ $value | humanizePercentage }}
+            Allowed error budget: 0.5%
+
+  # ========================================================================
+  # SLO: API Latency (P95 < 500ms, P99 < 1000ms)
+  # ========================================================================
+  - name: slo_api_latency
+    interval: 30s
+    rules:
+      # SLI: P95 latency
+      - record: sli:api_latency:p95_1m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(cqox_api_request_duration_seconds_bucket[1m])) by (le, service, endpoint)
+          )
+
+      - record: sli:api_latency:p99_1m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(cqox_api_request_duration_seconds_bucket[1m])) by (le, service, endpoint)
+          )
+
+      # Alert: P95 latency SLO violation
+      - alert: LatencyP95High
+        expr: |
+          sli:api_latency:p95_1m > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          slo: latency
+        annotations:
+          summary: "P95 latency exceeds 500ms ({{ $labels.endpoint }})"
+          description: |
+            P95 latency is {{ $value | humanizeDuration }} for {{ $labels.endpoint }}.
+            This exceeds the 500ms SLO.
+
+            Current P95: {{ $value | humanizeDuration }}
+            Target SLO: 500ms
+
+      # Alert: P99 latency SLO violation
+      - alert: LatencyP99High
+        expr: |
+          sli:api_latency:p99_1m > 1.0
+        for: 2m
+        labels:
+          severity: warning
+          slo: latency
+        annotations:
+          summary: "P99 latency exceeds 1000ms ({{ $labels.endpoint }})"
+          description: |
+            P99 latency is {{ $value | humanizeDuration }} for {{ $labels.endpoint }}.
+            This exceeds the 1000ms SLO.
+
+            Current P99: {{ $value | humanizeDuration }}
+            Target SLO: 1000ms
+
+  # ========================================================================
+  # SLO: Job Completion (P95 < 5 minutes for policy training)
+  # ========================================================================
+  - name: slo_job_completion
+    interval: 1m
+    rules:
+      # SLI: Job completion time P95
+      - record: sli:job_duration:p95_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(cqox_job_duration_seconds_bucket{job_type="policy_training"}[5m])) by (le, job_type)
+          )
+
+      # Alert: Job duration SLO violation
+      - alert: JobCompletionSlow
+        expr: |
+          sli:job_duration:p95_5m > 300
+        for: 5m
+        labels:
+          severity: warning
+          slo: job_completion
+        annotations:
+          summary: "Policy training jobs are slow ({{ $labels.job_type }})"
+          description: |
+            P95 job duration is {{ $value | humanizeDuration }}.
+            This exceeds the 5-minute SLO.
+
+            Current P95: {{ $value | humanizeDuration }}
+            Target SLO: 300s (5 minutes)
+
+  # ========================================================================
+  # Infrastructure Health Alerts
+  # ========================================================================
+  - name: infrastructure_health
+    interval: 30s
+    rules:
+      # Pod crashlooping
+      - alert: PodCrashLooping
+        expr: |
+          rate(kube_pod_container_status_restarts_total{namespace="cqox-production"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod {{ $labels.pod }} is crash looping"
+          description: |
+            Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is restarting frequently.
+            Restart rate: {{ $value | humanize }} restarts/second
+
+      # Pod not ready
+      - alert: PodNotReady
+        expr: |
+          kube_pod_status_phase{namespace="cqox-production", phase!="Running"} > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.pod }} not ready"
+          description: |
+            Pod {{ $labels.pod }} has been in {{ $labels.phase }} state for 10 minutes.
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: |
+          (container_memory_usage_bytes{namespace="cqox-production"}
+           / container_spec_memory_limit_bytes{namespace="cqox-production"}) > 0.90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage in {{ $labels.pod }}"
+          description: |
+            Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of memory limit.
+
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: |
+          (rate(container_cpu_usage_seconds_total{namespace="cqox-production"}[5m])
+           / container_spec_cpu_quota{namespace="cqox-production"} * 100000) > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage in {{ $labels.pod }}"
+          description: |
+            Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value }}% of CPU limit.
+
+  # ========================================================================
+  # Database Health
+  # ========================================================================
+  - name: database_health
+    interval: 30s
+    rules:
+      # Database connection pool exhaustion
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          (pg_stat_activity_count / pg_settings_max_connections) > 0.80
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL connection pool near exhaustion"
+          description: |
+            Database is using {{ $value | humanizePercentage }} of available connections.
+            Current: {{ $value }}
+            Max: pg_settings_max_connections
+
+      # Long-running queries
+      - alert: LongRunningQuery
+        expr: |
+          pg_stat_activity_max_tx_duration > 300
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Long-running database query detected"
+          description: |
+            A query has been running for {{ $value | humanizeDuration }}.
+            This may indicate a problematic query or deadlock.
+
+      # Database replication lag
+      - alert: DatabaseReplicationLag
+        expr: |
+          pg_replication_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL replication lag is high"
+          description: |
+            Replication lag is {{ $value | humanizeDuration }}.
+            This may impact read replica consistency.
+
+  # ========================================================================
+  # Redis Health
+  # ========================================================================
+  - name: redis_health
+    interval: 30s
+    rules:
+      # Redis memory usage
+      - alert: RedisMemoryHigh
+        expr: |
+          (redis_memory_used_bytes / redis_memory_max_bytes) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis memory usage is high"
+          description: |
+            Redis is using {{ $value | humanizePercentage }} of max memory.
+            Consider increasing memory or enabling eviction.
+
+      # Redis connection issues
+      - alert: RedisConnectionFailures
+        expr: |
+          rate(redis_rejected_connections_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is rejecting connections"
+          description: |
+            Redis is rejecting {{ $value | humanize }} connections per second.
+            Check connection limits and client pool configuration.
+
+  # ========================================================================
+  # Celery Queue Health
+  # ========================================================================
+  - name: celery_health
+    interval: 1m
+    rules:
+      # Queue backlog
+      - alert: CeleryQueueBacklog
+        expr: |
+          celery_queue_length{queue="heavy"} > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Celery queue {{ $labels.queue }} has backlog"
+          description: |
+            Queue {{ $labels.queue }} has {{ $value }} pending tasks.
+            Consider scaling workers or investigating slow tasks.
+
+      # Worker down
+      - alert: CeleryWorkerDown
+        expr: |
+          up{job="celery-worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Celery worker {{ $labels.instance }} is down"
+          description: |
+            Celery worker {{ $labels.instance }} has been down for 2 minutes.
+
+  # ========================================================================
+  # ML Model Drift
+  # ========================================================================
+  - name: ml_model_drift
+    interval: 5m
+    rules:
+      # Data drift detected
+      - alert: ModelDataDrift
+        expr: |
+          cqox_model_psi_score > 0.2
+        for: 10m
+        labels:
+          severity: warning
+          mlops: drift
+        annotations:
+          summary: "Data drift detected for model {{ $labels.model_id }}"
+          description: |
+            PSI score is {{ $value }}, indicating significant distribution shift.
+
+            PSI: {{ $value }}
+            Threshold: 0.2
+            Action: Consider retraining model
+
+      # Model performance degradation
+      - alert: ModelPerformanceDegradation
+        expr: |
+          cqox_model_performance_slope < -0.01
+          and
+          cqox_model_performance_pvalue < 0.05
+        for: 1h
+        labels:
+          severity: warning
+          mlops: degradation
+        annotations:
+          summary: "Model {{ $labels.model_id }} performance degrading"
+          description: |
+            Model performance is degrading at {{ $value }}% per day.
+
+            Slope: {{ $value }}
+            P-value: cqox_model_performance_pvalue
+            Action: Investigate and consider retraining
