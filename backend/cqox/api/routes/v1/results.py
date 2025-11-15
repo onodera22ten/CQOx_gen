@@ -15,27 +15,37 @@ from cqox.api.models.v1.decision_card import (
     DecisionCardList,
     DecisionCardCreate
 )
-from cqox.core.database import get_db
-from cqox.core.auth import get_current_user
-from cqox.api.models.auth import User
+# Temporary: Use simplified dependencies until proper auth is set up
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/results", tags=["v1-results"])
 
 
+async def get_db():
+    """Temporary DB session (to be replaced with proper implementation)"""
+    return None
+
+async def get_current_user():
+    """Temporary user (to be replaced with proper auth)"""
+    class TempUser:
+        tenant_id = "temp-tenant"
+    return TempUser()
+
 @router.post("", response_model=DecisionCard, status_code=201)
 async def create_decision_card(
     request: DecisionCardCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user = Depends(get_current_user)
 ):
     """
     DecisionCard作成
 
     因果推論実行後に、Δ¥とverdict（Go/Canary/Hold）を保存
     """
-    from cqox.core.models import Decision
+    from cqox.database.models import Decision
 
     # DecisionCardを作成
     decision = Decision(

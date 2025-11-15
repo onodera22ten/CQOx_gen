@@ -20,6 +20,7 @@ import uuid
 from cqox.config import settings
 from cqox.api.routes import datasets, policies, causal, diagnostics, portfolio, console, upload, visualizations, admin
 from cqox.api.routes.v2 import v2_router
+from cqox.api.routes.v1 import results as v1_results, console as v1_console
 
 # Layer 2: Observability
 from cqox.monitoring.metrics import (
@@ -631,6 +632,10 @@ app.include_router(admin.router, prefix=f"{settings.api_prefix}", tags=["admin"]
 
 # Include v2 API router (Policy Lab, Recourse, Experiment Design)
 app.include_router(v2_router, prefix=f"{settings.api_prefix}")
+
+# Include v1 API routers (DecisionCard, Console Summary)
+app.include_router(v1_results.router, tags=["v1-results"])
+app.include_router(v1_console.router, tags=["v1-console"])
 
 
 # ============================================================================
