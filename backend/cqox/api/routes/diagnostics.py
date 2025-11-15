@@ -10,7 +10,7 @@ import numpy as np
 
 from cqox.data.loader import DataLoader
 from cqox.causal.diagnostics.balance import covariate_balance_test, love_plot_data
-from cqox.causal.diagnostics.overlap import overlap_test, propensity_density_data
+from cqox.causal.diagnostics.overlap import overlap_test, propensity_density_plot_data
 from cqox.causal.diagnostics.sensitivity import rosenbaum_sensitivity_gamma, e_value_calculation
 from cqox.causal.diagnostics.cate_diagnostics import (
     qini_curve_data,
@@ -92,7 +92,7 @@ async def run_diagnostics(request: DiagnosticsRequest):
         })
 
         # 4. Propensity Density
-        density_data = propensity_density_data(X, treatment)
+        density_data = propensity_density_plot_data(X, treatment)
         all_checks.append({
             "type": "propensity_density",
             "name": "Propensity Density",
