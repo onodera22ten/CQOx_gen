@@ -1,0 +1,523 @@
+{
+  "dashboard": {
+    "title": "CQOx - Detailed Monitoring Dashboard",
+    "description": "Comprehensive monitoring for CQOx API with RED metrics, business metrics, and infrastructure health",
+    "tags": ["cqox", "monitoring", "detailed"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "annotations": {
+      "list": [
+        {
+          "name": "Deployments",
+          "datasource": "Prometheus",
+          "enable": true,
+          "expr": "changes(process_start_time_seconds[5m]) > 0",
+          "tagKeys": "deployment",
+          "textFormat": "Deployment",
+          "titleFormat": "Application Restart"
+        }
+      ]
+    },
+    "templating": {
+      "list": [
+        {
+          "name": "environment",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(http_requests_total, environment)",
+          "current": {
+            "text": "production",
+            "value": "production"
+          }
+        },
+        {
+          "name": "endpoint",
+          "type": "query",
+          "datasource": "Prometheus",
+          "query": "label_values(http_requests_total, endpoint)",
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "includeAll": true
+        }
+      ]
+    },
+    "panels": [
+      {
+        "gridPos": {"x": 0, "y": 0, "w": 24, "h": 1},
+        "type": "row",
+        "title": "⚡ RED Metrics (Rate, Errors, Duration)"
+      },
+      {
+        "id": 1,
+        "gridPos": {"x": 0, "y": 1, "w": 8, "h": 6},
+        "title": "Request Rate (req/sec)",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{environment=\"$environment\", endpoint=~\"$endpoint\"}[5m])) by (endpoint)",
+            "legendFormat": "{{endpoint}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps", "label": "Requests/sec"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "name": "High Request Rate",
+          "conditions": [
+            {
+              "evaluator": {"params": [1000], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "1m",
+          "handler": 1,
+          "message": "Request rate exceeds 1000 req/sec",
+          "noDataState": "no_data"
+        }
+      },
+      {
+        "id": 2,
+        "gridPos": {"x": 8, "y": 1, "w": 8, "h": 6},
+        "title": "Error Rate (%)",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{status=~\"5..\", environment=\"$environment\", endpoint=~\"$endpoint\"}[5m])) / sum(rate(http_requests_total{environment=\"$environment\", endpoint=~\"$endpoint\"}[5m])) * 100",
+            "legendFormat": "Error Rate",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Error %"},
+          {"format": "short"}
+        ],
+        "thresholds": [
+          {
+            "value": 1,
+            "colorMode": "critical",
+            "op": "gt",
+            "fill": true,
+            "line": true
+          },
+          {
+            "value": 5,
+            "colorMode": "critical",
+            "op": "gt"
+          }
+        ],
+        "alert": {
+          "name": "High Error Rate",
+          "conditions": [
+            {
+              "evaluator": {"params": [5], "type": "gt"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"}
+            }
+          ],
+          "message": "Error rate exceeds 5%"
+        }
+      },
+      {
+        "id": 3,
+        "gridPos": {"x": 16, "y": 1, "w": 8, "h": 6},
+        "title": "Request Duration (Percentiles)",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{environment=\"$environment\", endpoint=~\"$endpoint\"}[5m])) by (le))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{environment=\"$environment\", endpoint=~\"$endpoint\"}[5m])) by (le))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{environment=\"$environment\", endpoint=~\"$endpoint\"}[5m])) by (le))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "gridPos": {"x": 0, "y": 7, "w": 24, "h": 1},
+        "type": "row",
+        "title": "📊 Business Metrics"
+      },
+      {
+        "id": 10,
+        "gridPos": {"x": 0, "y": 8, "w": 6, "h": 6},
+        "title": "Active Model Runs",
+        "type": "stat",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(model_training_in_progress)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 11,
+        "gridPos": {"x": 6, "y": 8, "w": 6, "h": 6},
+        "title": "Model Training Duration (p95)",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(model_training_duration_seconds_bucket[5m])) by (le, estimator))",
+            "legendFormat": "{{estimator}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 12,
+        "gridPos": {"x": 12, "y": 8, "w": 6, "h": 6},
+        "title": "CAS Score (Average)",
+        "type": "gauge",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "avg(cas_score)",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "auto",
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 50, "color": "yellow"},
+                {"value": 80, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 13,
+        "gridPos": {"x": 18, "y": 8, "w": 6, "h": 6},
+        "title": "Policy ROI Distribution",
+        "type": "heatmap",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(policy_roi_bucket[5m])) by (le)",
+            "format": "heatmap",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "gridPos": {"x": 0, "y": 14, "w": 24, "h": 1},
+        "type": "row",
+        "title": "🔐 Security & Rate Limiting"
+      },
+      {
+        "id": 20,
+        "gridPos": {"x": 0, "y": 15, "w": 8, "h": 6},
+        "title": "Authentication Success Rate",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{endpoint=~\"/auth/.*\", status=\"200\"}[5m])) / sum(rate(http_requests_total{endpoint=~\"/auth/.*\"}[5m])) * 100",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "max": 100, "min": 0}
+        ]
+      },
+      {
+        "id": 21,
+        "gridPos": {"x": 8, "y": 15, "w": 8, "h": 6},
+        "title": "Rate Limited Requests",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{status=\"429\"}[5m]))",
+            "legendFormat": "Rate Limited",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "reqps"}
+        ]
+      },
+      {
+        "id": 22,
+        "gridPos": {"x": 16, "y": 15, "w": 8, "h": 6},
+        "title": "Active JWT Tokens",
+        "type": "stat",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(active_jwt_tokens)",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "gridPos": {"x": 0, "y": 21, "w": 24, "h": 1},
+        "type": "row",
+        "title": "💾 Infrastructure & Storage"
+      },
+      {
+        "id": 30,
+        "gridPos": {"x": 0, "y": 22, "w": 6, "h": 6},
+        "title": "Redis Cache Hit Rate",
+        "type": "gauge",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(cache_hits_total[5m])) / (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m]))) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 50, "color": "yellow"},
+                {"value": 80, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 31,
+        "gridPos": {"x": 6, "y": 22, "w": 6, "h": 6},
+        "title": "Database Connection Pool",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "pg_stat_database_numbackends",
+            "legendFormat": "Active Connections",
+            "refId": "A"
+          },
+          {
+            "expr": "pg_settings_max_connections",
+            "legendFormat": "Max Connections",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 32,
+        "gridPos": {"x": 12, "y": 22, "w": 6, "h": 6},
+        "title": "TimescaleDB Write Rate",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(timescaledb_inserts_total[5m])",
+            "legendFormat": "Inserts/sec",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops"}
+        ]
+      },
+      {
+        "id": 33,
+        "gridPos": {"x": 18, "y": 22, "w": 6, "h": 6},
+        "title": "S3 Upload Size",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(s3_upload_bytes_total[5m]))",
+            "legendFormat": "Upload Rate",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "binBps"}
+        ]
+      },
+      {
+        "gridPos": {"x": 0, "y": 28, "w": 24, "h": 1},
+        "type": "row",
+        "title": "🖥️ System Resources"
+      },
+      {
+        "id": 40,
+        "gridPos": {"x": 0, "y": 29, "w": 8, "h": 6},
+        "title": "CPU Usage",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total[5m]) * 100",
+            "legendFormat": "CPU %",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "max": 100}
+        ]
+      },
+      {
+        "id": 41,
+        "gridPos": {"x": 8, "y": 29, "w": 8, "h": 6},
+        "title": "Memory Usage",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes / 1024 / 1024",
+            "legendFormat": "RSS (MB)",
+            "refId": "A"
+          },
+          {
+            "expr": "process_virtual_memory_bytes / 1024 / 1024",
+            "legendFormat": "Virtual (MB)",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "decmbytes"}
+        ]
+      },
+      {
+        "id": 42,
+        "gridPos": {"x": 16, "y": 29, "w": 8, "h": 6},
+        "title": "Network I/O",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "rate(node_network_receive_bytes_total[5m])",
+            "legendFormat": "RX",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(node_network_transmit_bytes_total[5m])",
+            "legendFormat": "TX",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "binBps"}
+        ]
+      },
+      {
+        "gridPos": {"x": 0, "y": 35, "w": 24, "h": 1},
+        "type": "row",
+        "title": "📉 Detailed Endpoint Metrics"
+      },
+      {
+        "id": 50,
+        "gridPos": {"x": 0, "y": 36, "w": 24, "h": 8},
+        "title": "Request Duration by Endpoint (Heatmap)",
+        "type": "heatmap",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint)",
+            "format": "heatmap",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 51,
+        "gridPos": {"x": 0, "y": 44, "w": 12, "h": 8},
+        "title": "Top Endpoints by Request Count",
+        "type": "table",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "topk(10, sum(rate(http_requests_total[5m])) by (endpoint))",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 52,
+        "gridPos": {"x": 12, "y": 44, "w": 12, "h": 8},
+        "title": "Slowest Endpoints (p95 latency)",
+        "type": "table",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "topk(10, histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint)))",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}

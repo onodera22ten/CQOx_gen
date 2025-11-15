@@ -7,12 +7,21 @@ export default function Layout() {
   const { user, logout } = useAuth()
 
   const navItems = [
-    { path: '/console', label: 'Decision Console', permission: null },
-    { path: '/policy', label: 'Policy Lab', permission: 'models:write' },
-    { path: '/causal', label: 'Causal Design', permission: 'models:read' },
-    { path: '/portfolio', label: 'Portfolio & ROI', permission: 'policies:read' },
-    { path: '/diagnostics', label: 'Diagnostics', permission: 'diagnostics:read' },
+    { path: '/console', label: 'Decision Console', permission: null, role: null },
+    { path: '/policy', label: 'Policy Lab', permission: 'models:write', role: null },
+    { path: '/causal', label: 'Causal Design', permission: 'models:read', role: null },
+    { path: '/portfolio', label: 'Portfolio & ROI', permission: 'policies:read', role: null },
+    { path: '/diagnostics', label: 'Diagnostics', permission: 'diagnostics:read', role: null },
+    { path: '/admin', label: 'Admin Panel', permission: null, role: 'admin' },
   ]
+
+  // Filter nav items based on user permissions/roles
+  const visibleNavItems = navItems.filter(item => {
+    if (item.role && user && !user.roles.includes(item.role)) {
+      return false;
+    }
+    return true;
+  })
 
   const handleLogout = async () => {
     await logout()
@@ -73,7 +82,7 @@ export default function Layout() {
         )}
 
         <ul className="nav-list">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <li key={item.path}>
               <Link
                 to={item.path}

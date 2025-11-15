@@ -7,6 +7,7 @@ import PolicyLab from './pages/PolicyLab'
 import CausalDesign from './pages/CausalDesign'
 import Portfolio from './pages/Portfolio'
 import Diagnostics from './pages/Diagnostics'
+import { Admin } from './pages/Admin'
 import { Login } from './pages/Login'
 import { OAuthCallback } from './pages/OAuthCallback'
 
@@ -53,6 +54,13 @@ function App() {
             <Route path="diagnostics" element={
               <ProtectedRoute requiredPermission="diagnostics:read">
                 <Diagnostics />
+              </ProtectedRoute>
+            } />
+
+            {/* Admin - requires admin role */}
+            <Route path="admin" element={
+              <ProtectedRoute requiredRole="admin">
+                <Admin />
               </ProtectedRoute>
             } />
           </Route>

@@ -18,7 +18,7 @@ import time
 import uuid
 
 from cqox.config import settings
-from cqox.api.routes import datasets, policies, causal, diagnostics, portfolio, console, upload, visualizations
+from cqox.api.routes import datasets, policies, causal, diagnostics, portfolio, console, upload, visualizations, admin
 
 # Layer 2: Observability
 from cqox.monitoring.metrics import (
@@ -91,15 +91,151 @@ async def lifespan(app: FastAPI):
         logger.info("✓ Redis connection closed")
 
 
-# Create FastAPI app with lifespan
+# Create FastAPI app with enhanced OpenAPI documentation
 app = FastAPI(
     title="CQOx API",
-    description="Causal Query Optimizer with World-Class Infrastructure",
+    description="""
+# Causal Query Optimizer API
+
+Enterprise-grade API for causal inference, policy optimization, and marketing analytics.
+
+## Features
+
+### 🔐 Security & Authentication
+- **JWT Authentication**: Secure token-based authentication (HS256/RS256)
+- **OAuth2**: Social login (Google, GitHub, Microsoft)
+- **RBAC**: Role-based access control (Admin, Analyst, Viewer)
+- **API Keys**: Service-to-service authentication
+- **Rate Limiting**: 100 requests/minute per IP
+- **GDPR Compliant**: Data portability, right to erasure
+
+### 📊 Infrastructure Layers
+- **Layer 3 - Storage**: TimescaleDB, Redis, S3, PostgreSQL
+- **Layer 2 - Observability**: Prometheus, Grafana, Jaeger, Structured Logging
+- **Layer 1 - Infrastructure**: Docker, Kubernetes, ArgoCD, Argo Rollouts
+
+### 🧪 Causal Inference
+- Multiple estimators: S-learner, T-learner, X-learner, DR-learner, Causal Forest
+- Diagnostics: Overlap, balance, sensitivity analysis
+- Policy optimization: Multi-objective optimization with constraints
+
+### 📈 Analytics
+- Portfolio ROI analysis
+- Policy performance tracking
+- Real-time metrics and monitoring
+
+## Authentication
+
+### JWT Token
+```bash
+# Login to get access token
+curl -X POST "/auth/token" \\
+  -H "Content-Type: application/x-www-form-urlencoded" \\
+  -d "email=user@example.com&password=your_password"
+
+# Use token in requests
+curl -X GET "/api/me" \\
+  -H "Authorization: Bearer <access_token>"
+```
+
+### OAuth2
+```bash
+# Initiate OAuth flow
+GET /auth/login/{provider}  # provider: google, github, microsoft
+
+# Handle callback
+GET /auth/callback/{provider}?code=<code>&state=<state>
+```
+
+### API Key
+```bash
+# Use API key for service-to-service
+curl -X GET "/api/models" \\
+  -H "X-API-Key: cqox_live_<your_api_key>"
+```
+
+## Rate Limiting
+- **Default**: 100 requests per minute per IP
+- **API Keys**: Custom rate limits per key
+- **Response Headers**: `X-RateLimit-Limit`, `X-RateLimit-Remaining`
+
+## Roles & Permissions
+
+| Role | Permissions |
+|------|-------------|
+| **Admin** | Full access to all resources and user management |
+| **Analyst** | Read/write models, policies, diagnostics |
+| **Viewer** | Read-only access to models and policies |
+
+## Monitoring & Observability
+- **Metrics**: `/metrics` (Prometheus format)
+- **Health**: `/health` (Service health status)
+- **Tracing**: Distributed tracing with Jaeger (trace IDs in logs)
+""",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json"
+    openapi_url="/api/openapi.json",
+    contact={
+        "name": "CQOx Team",
+        "email": "support@cqox.example.com",
+    },
+    license_info={
+        "name": "Proprietary",
+    },
+    servers=[
+        {
+            "url": "http://localhost:8000",
+            "description": "Development server"
+        },
+        {
+            "url": "https://api.cqox.example.com",
+            "description": "Production server"
+        }
+    ],
+    tags_metadata=[
+        {
+            "name": "authentication",
+            "description": "Authentication and authorization operations. Supports JWT, OAuth2, and API keys."
+        },
+        {
+            "name": "datasets",
+            "description": "Dataset management operations. Upload, validate, and manage datasets for causal analysis."
+        },
+        {
+            "name": "policies",
+            "description": "Policy operations. Create, optimize, and evaluate treatment policies."
+        },
+        {
+            "name": "causal",
+            "description": "Causal inference operations. Run estimators, evaluate CATE, and perform causal analysis."
+        },
+        {
+            "name": "diagnostics",
+            "description": "Diagnostic operations. Check overlap, balance, and sensitivity of causal estimates."
+        },
+        {
+            "name": "portfolio",
+            "description": "Portfolio and ROI operations. Optimize policy portfolios and calculate ROI metrics."
+        },
+        {
+            "name": "console",
+            "description": "Decision console operations. Dashboard and decision support."
+        },
+        {
+            "name": "upload",
+            "description": "File upload operations. Upload datasets and artifacts."
+        },
+        {
+            "name": "visualizations",
+            "description": "Visualization operations. Generate plots and charts for analysis."
+        },
+        {
+            "name": "admin",
+            "description": "Admin operations. User management and system configuration. **Requires admin role**."
+        }
+    ]
 )
 
 
@@ -474,6 +610,7 @@ app.include_router(portfolio.router, prefix=f"{settings.api_prefix}/portfolio", 
 app.include_router(console.router, prefix=f"{settings.api_prefix}/console", tags=["console"])
 app.include_router(upload.router, prefix=f"{settings.api_prefix}/upload", tags=["upload"])
 app.include_router(visualizations.router, prefix=f"{settings.api_prefix}/visualizations", tags=["visualizations"])
+app.include_router(admin.router, prefix=f"{settings.api_prefix}", tags=["admin"])
 
 
 # ============================================================================
