@@ -19,6 +19,7 @@ import uuid
 
 from cqox.config import settings
 from cqox.api.routes import datasets, policies, causal, diagnostics, portfolio, console, upload, visualizations, admin
+from cqox.api.routes.v2 import v2_router
 
 # Layer 2: Observability
 from cqox.monitoring.metrics import (
@@ -234,6 +235,22 @@ curl -X GET "/api/models" \\
         {
             "name": "admin",
             "description": "Admin operations. User management and system configuration. **Requires admin role**."
+        },
+        {
+            "name": "v2",
+            "description": "CQOx v2 API. Next-generation features including Policy Lab, Recourse, and Experiment Design."
+        },
+        {
+            "name": "policies",
+            "description": "Policy Lab (v2). Offline policy learning, optimization, and evaluation using off-policy methods."
+        },
+        {
+            "name": "recourse",
+            "description": "Recourse API (v2). Individual-level counterfactual interventions and actionable recommendations."
+        },
+        {
+            "name": "experiments",
+            "description": "Experiment Design (v2). A/B testing, sample size calculation, and power analysis."
         }
     ]
 )
@@ -611,6 +628,9 @@ app.include_router(console.router, prefix=f"{settings.api_prefix}/console", tags
 app.include_router(upload.router, prefix=f"{settings.api_prefix}/upload", tags=["upload"])
 app.include_router(visualizations.router, prefix=f"{settings.api_prefix}/visualizations", tags=["visualizations"])
 app.include_router(admin.router, prefix=f"{settings.api_prefix}", tags=["admin"])
+
+# Include v2 API router (Policy Lab, Recourse, Experiment Design)
+app.include_router(v2_router, prefix=f"{settings.api_prefix}")
 
 
 # ============================================================================
