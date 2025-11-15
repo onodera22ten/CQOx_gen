@@ -10,7 +10,11 @@ from cqox.tasks.celery_app import app
 from cqox.data.loader import DataLoader
 from cqox.causal.estimators.s_learner import SLearner
 from cqox.causal.estimators.t_learner import TLearner
+from cqox.causal.estimators.x_learner import XLearner
 from cqox.causal.estimators.dr_learner import DRLearner
+from cqox.causal.estimators.causal_forest import CausalForest
+from cqox.causal.estimators.uplift_forest import UpliftForest
+from cqox.causal.estimators.doubly_robust_forest import DoublyRobustForest
 
 
 class CausalTrainingTask(Task):
@@ -31,6 +35,15 @@ def train_causal_models(
 ):
     """
     Train multiple causal estimators
+
+    Supports all 7 estimators:
+    - s_learner
+    - t_learner
+    - x_learner
+    - dr_learner
+    - causal_forest
+    - uplift_forest
+    - doubly_robust_forest
 
     Args:
         dataset_path: Path to dataset
@@ -54,19 +67,27 @@ def train_causal_models(
 
         results = {}
 
+        # Map estimator names to classes
+        estimator_map = {
+            's_learner': SLearner,
+            't_learner': TLearner,
+            'x_learner': XLearner,
+            'dr_learner': DRLearner,
+            'causal_forest': CausalForest,
+            'uplift_forest': UpliftForest,
+            'doubly_robust_forest': DoublyRobustForest
+        }
+
         # Train each estimator
         for estimator_name in estimators:
             logger.info(f"Training {estimator_name}")
 
-            if estimator_name == 's_learner':
-                estimator = SLearner()
-            elif estimator_name == 't_learner':
-                estimator = TLearner()
-            elif estimator_name == 'dr_learner':
-                estimator = DRLearner()
-            else:
+            if estimator_name not in estimator_map:
                 logger.warning(f"Unknown estimator: {estimator_name}")
                 continue
+
+            EstimatorClass = estimator_map[estimator_name]
+            estimator = EstimatorClass()
 
             # Fit
             estimator.fit(X, T, y)

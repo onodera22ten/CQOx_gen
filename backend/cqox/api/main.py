@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from cqox.config import settings
-from cqox.api.routes import datasets, policies, causal, diagnostics, portfolio, console, upload
+from cqox.api.routes import datasets, policies, causal, diagnostics, portfolio, console, upload, visualizations
 
 # Create FastAPI app
 app = FastAPI(
@@ -32,6 +32,7 @@ app.include_router(diagnostics.router, prefix=f"{settings.api_prefix}/diagnostic
 app.include_router(portfolio.router, prefix=f"{settings.api_prefix}/portfolio", tags=["portfolio"])
 app.include_router(console.router, prefix=f"{settings.api_prefix}/console", tags=["console"])
 app.include_router(upload.router, prefix=f"{settings.api_prefix}/upload", tags=["upload"])
+app.include_router(visualizations.router, prefix=f"{settings.api_prefix}/visualizations", tags=["visualizations"])
 
 
 @app.get("/")
