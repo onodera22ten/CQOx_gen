@@ -8,6 +8,7 @@ export default function Layout() {
 
   const navItems = [
     { path: '/console', label: 'Decision Console', permission: null, role: null },
+    { path: '/decision-console-v1', label: '[v1] マーケ施策判定', permission: null, role: null },
     { path: '/policy', label: 'Policy Lab', permission: 'models:write', role: null },
     { path: '/causal', label: 'Causal Design', permission: 'models:read', role: null },
     { path: '/portfolio', label: 'Portfolio & ROI', permission: 'policies:read', role: null },

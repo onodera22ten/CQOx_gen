@@ -11,6 +11,9 @@ import { Admin } from './pages/Admin'
 import { Login } from './pages/Login'
 import { OAuthCallback } from './pages/OAuthCallback'
 
+// v1 Pages
+import DecisionConsoleV1 from './pages/DecisionConsoleV1'
+
 // v2 Pages
 import PolicyLabV2 from './pages/PolicyLabV2'
 import RecourseV2 from './pages/RecourseV2'
@@ -33,6 +36,11 @@ function App() {
           }>
             <Route index element={<DecisionConsole />} />
             <Route path="console" element={<DecisionConsole />} />
+
+            {/* ===== v1 Routes ===== */}
+
+            {/* Decision Console v1 - Marketing-focused Δ¥ + Go/Canary/Hold */}
+            <Route path="decision-console-v1" element={<DecisionConsoleV1 />} />
 
             {/* Policy Lab - requires models:write permission */}
             <Route path="policy" element={
