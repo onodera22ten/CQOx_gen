@@ -37,9 +37,13 @@ sqlalchemy==2.0.25
 psycopg2-binary==2.9.9
 alembic==1.13.1
 
+# Authentication & Security
+pyjwt==2.8.0
+passlib==1.7.4
+bcrypt==4.1.2
+
 # Async / Task Queue
 celery==5.3.6
-redis==5.0.1
 
 # Utilities
 pyyaml==6.0.1
