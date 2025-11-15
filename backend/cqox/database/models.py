@@ -130,9 +130,47 @@ class ColumnMappingProfile(Base):
     __tablename__ = "column_mapping_profiles"
 
     id = Column(String, primary_key=True)
-    name = Column(String, nullable=False, unique=True)
-    mapping = Column(JSON, nullable=False)
-    metadata = Column(JSON)
+    name = Column(String, nullable=False)
+    source_system = Column(String)
+    mapping_json = Column(JSON, nullable=False)  # Changed from 'mapping' to 'mapping_json'
+    version = Column(String, default="1.0")
+    tenant_id = Column(String)  # Multi-tenancy support
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Decision(Base):
+    """Decision Card table (Δ¥ + Go/Canary/Hold判定)"""
+    __tablename__ = "decisions"
+
+    id = Column(String, primary_key=True)
+    policy_id = Column(String, ForeignKey("policies.id"), nullable=False)
+    scenario_id = Column(String)  # Optional
+    scenario_name = Column(String, nullable=False)
+
+    # Δ¥関連
+    delta_yen = Column(Float, nullable=False)  # S1 - S0 の期待Δ¥（円）
+    delta_yen_ci_low = Column(Float)  # 95% 信頼区間下限
+    delta_yen_ci_high = Column(Float)  # 95% 信頼区間上限
+    delta_yen_std = Column(Float)  # Δ¥の標準偏差
+
+    # 判定
+    verdict = Column(String, nullable=False)  # "Go" | "Canary" | "Hold"
+    reason = Column(Text)  # Hold/Canary理由
+
+    # メタデータ（マーケティング用）
+    channel = Column(String)  # チャネル: "アプリPush", "Email", etc.
+    segment = Column(String)  # セグメント: "RFM High-Value", etc.
+
+    # 品質スコア & 再現性
+    quality_scores = Column(JSON)  # { overlap_coverage, iv_f_stat, ... }
+    scenario_spec = Column(JSON)  # S0/S1のポリシー定義
+    estimator_results = Column(JSON)  # 使用した推定器の詳細結果
+
+    # Audit
+    tenant_id = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    policy = relationship("Policy")
