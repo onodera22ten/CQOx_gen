@@ -3,15 +3,15 @@
  *
  * Δ¥ランキング最優先のマーケティング意思決定ダッシュボード
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { decisionsApi, DecisionCard as DecisionCardType } from '../api/v1/decisions';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { decisionsApi } from '../api/v1/decisions';
 import DecisionCard from '../components/v1/DecisionCard';
 import DeltaYenMetricCard from '../components/v1/DeltaYenMetricCard';
 
 const DecisionConsoleV1: React.FC = () => {
-  const [periodDays, setPeriodDays] = useState(7);
+  const periodDays = 7;
   const [selectedVerdict, setSelectedVerdict] = useState<'Go' | 'Canary' | 'Hold' | undefined>(undefined);
 
   // Δ¥サマリー取得

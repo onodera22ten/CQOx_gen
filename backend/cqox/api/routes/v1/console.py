@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Literal
 import logging
 
 from cqox.api.models.v1.decision_card import (
