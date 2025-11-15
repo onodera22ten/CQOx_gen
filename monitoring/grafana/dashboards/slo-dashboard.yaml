@@ -1,0 +1,13 @@
+# Grafana Dashboard for CQOx SLO/SLI Monitoring
+apiVersion: 1
+
+providers:
+  - name: 'CQOx SLO Dashboards'
+    orgId: 1
+    folder: 'SLO'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

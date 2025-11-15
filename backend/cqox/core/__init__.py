@@ -1,6 +1,35 @@
 """
 CQOx Core Module
-Core infrastructure components
+Distributed systems, job execution, multi-tenancy, and infrastructure
 """
 
-__all__ = []
+from .distributed_jobs import (
+    celery_app,
+    IdempotentTask,
+    DistributedLock,
+    JobStatus,
+    JobStateManager,
+)
+
+from .multi_tenancy import (
+    Plan,
+    TenantQuotas,
+    TenantContext,
+    RateLimiter,
+    QuotaManager,
+)
+
+__all__ = [
+    # Distributed jobs
+    "celery_app",
+    "IdempotentTask",
+    "DistributedLock",
+    "JobStatus",
+    "JobStateManager",
+    # Multi-tenancy
+    "Plan",
+    "TenantQuotas",
+    "TenantContext",
+    "RateLimiter",
+    "QuotaManager",
+]

@@ -1633,3 +1633,461 @@ test('should have no accessibility violations', async ({ page }) => {
 - 🔲 GraphQL API対応
 - 🔲 多言語対応 (i18n)
 - 🔲 アドバンストセキュリティ (生体認証、Zero Trust)
+
+---
+
+# v2 UI Design - Policy Lab, Recourse, Experiment Design
+
+**Last Updated**: 2025-11-15
+
+This section documents the v2 UI pages that have been implemented.
+
+## 1. Policy Lab v2
+
+**Route**: `/policy-lab-v2`  
+**Permission**: `models:write`  
+**File**: `frontend/src/pages/PolicyLabV2.tsx`
+
+### Features
+
+#### Policy Creation
+- Form-based policy configuration
+- Policy types: threshold, linear, multi-arm, custom
+- Feature selection with validation
+- Budget and coverage constraints
+
+#### Offline Policy Learning
+- Async job execution with real-time status updates
+- Polling every 2 seconds while running
+- Configuration options:
+  - Objective: uplift, delta_revenue, roi, ate, att
+  - Risk metric: std, var, cvar, worst_case
+  - OPE method: DR, IPW, DM
+  - Risk aversion: 0-1 slider
+  - Number of candidates: 10-1000
+  - Bootstrap samples: 100-10000
+
+#### Pareto Frontier Visualization
+- Recharts scatter plot
+- X-axis: Risk (standard deviation)
+- Y-axis: Expected Value
+- Interactive tooltips showing:
+  - Policy parameters (threshold, coefficients)
+  - Utility score
+  - Confidence intervals
+- Color-coded points:
+  - Blue: Frontier points
+  - Green star: Selected (best) policy
+
+#### Results Display
+- Metrics cards:
+  - Estimated Value with 95% CI
+  - Estimated Risk
+  - Number of frontier points
+- Recommended policy details:
+  - Optimal threshold/coefficients
+  - Performance metrics
+  - Deploy button (future: triggers production deployment)
+
+### UI Components
+
+```tsx
+<PolicyLabV2>
+  <PolicyList />           // Table with filters
+  <PolicyDetails />        // Selected policy config
+  <OfflineLearningStatus /> // Real-time job status
+  <ParetoFrontier />       // Scatter chart
+  <RecommendedPolicy />    // Best policy card
+  <CreatePolicyModal />    // Form modal
+</PolicyLabV2>
+```
+
+### Color Scheme
+- Primary (actions): `#3b82f6` (blue-500)
+- Success: `#10b981` (green-500)
+- Warning: `#f59e0b` (amber-500)
+- Error: `#ef4444` (red-500)
+- Gray scale for text/borders
+
+---
+
+## 2. Recourse v2
+
+**Route**: `/recourse-v2`  
+**Permission**: `models:read`  
+**File**: `frontend/src/pages/RecourseV2.tsx`
+
+### Features
+
+#### Input Form
+- Individual ID (unit_id)
+- Policy ID selection
+- Current features (JSON editor with syntax highlighting)
+- Target outcome (numerical input)
+- Actionable features (comma-separated)
+- Immutable features (optional)
+
+#### Recourse Plan Display
+- Current state metrics:
+  - Current predicted outcome
+  - Target outcome
+  - Gap to close
+- Candidate selector dropdown
+- For each candidate:
+  - **Metrics Cards** (4-up grid):
+    1. Predicted Outcome (blue)
+    2. Cost (green)
+    3. Feasibility % (purple)
+    4. Actionability % (orange)
+  - **Interventions Table**:
+    - Feature name
+    - Current → New value
+    - Absolute change
+    - Percentage change
+    - Color-coded (green=increase, red=decrease)
+  - **Apply button** (future: triggers intervention workflow)
+
+#### Privacy Notice
+- Prominent blue banner at bottom
+- Icon + text explaining:
+  - "Individual-level recourse plans are computed on-the-fly"
+  - "NOT stored in database"
+  - "GDPR compliant"
+
+### UI Components
+
+```tsx
+<RecourseV2>
+  <InputForm />            // JSON editor for features
+  <CurrentState />         // Current outcome display
+  <CandidateSelector />    // Dropdown for options
+  <MetricsGrid />          // 2×2 metrics cards
+  <InterventionsTable />   // Feature changes
+  <PrivacyNotice />        // GDPR banner
+</RecourseV2>
+```
+
+### Visual Design
+
+**Metrics Cards**:
+```
+┌────────────────────────┐
+│ Predicted Outcome      │
+│ 0.847                  │  // Large, bold number
+└────────────────────────┘
+```
+
+**Interventions**:
+```
+Feature     Current → New      Change
+─────────────────────────────────────
+income      50000 → 55000     +5000 (+10.0%)  ← Green
+score       0.6 → 0.75         +0.15 (+25.0%)  ← Green
+```
+
+---
+
+## 3. Experiment Design v2
+
+**Route**: `/experiment-design-v2`  
+**Permission**: `policies:write`  
+**File**: `frontend/src/pages/ExperimentDesignV2.tsx`
+
+### Features
+
+#### Experiment Creation
+- Basic info:
+  - Name, description
+  - Treatment variable
+  - Primary outcome variable
+  - Outcome type (continuous/binary)
+- Statistical configuration:
+  - Baseline mean or proportion
+  - Minimum Detectable Effect (MDE)
+  - Significance level (α): 0.01-0.10
+  - Power (1-β): 0.70-0.95
+- Treatment arms:
+  - Name, value, allocation %
+  - Validation: allocations must sum to 100%
+  - Support for 2+ arms (multi-arm testing)
+
+#### Sample Size Display
+- Three metric cards:
+  1. **Sample Size per Arm**: e.g., 1,247
+  2. **Total Sample Size**: e.g., 2,494
+  3. **Expected Runtime**: e.g., 8.3 days
+- Calculated using formulas:
+  - Continuous: t-test formula
+  - Binary: proportion test formula
+  - Multi-arm: Bonferroni correction
+
+#### Power Curve Visualization
+- Recharts line chart
+- X-axis: Effect Size
+- Y-axis: Statistical Power (0-100%)
+- Two lines:
+  1. **Blue solid**: Actual power curve
+  2. **Green dashed**: Target power (80%)
+- Interpretation box below chart:
+  - At MDE, power = target
+  - Larger effects detected with higher confidence
+  - Sample size breakdown
+
+#### Experiment Management
+- **Status badges**:
+  - Gray: design
+  - Blue: running
+  - Green: completed
+  - Yellow: stopped
+- **Actions**:
+  - View details
+  - Start (design → running)
+  - Stop (running → stopped)
+  - Delete (design only)
+
+### UI Components
+
+```tsx
+<ExperimentDesignV2>
+  <ExperimentList />          // Table with filters
+  <ExperimentConfig />        // Configuration display
+  <SampleSizeCards />         // 3 metric cards
+  <PowerCurve />              // Line chart
+  <CreateExperimentModal />   // Multi-step form
+</ExperimentDesignV2>
+```
+
+### Power Curve Formula
+
+```
+Continuous outcomes (t-test):
+n = 2 × (z_α/2 + z_β)² × σ² / δ²
+
+Binary outcomes (proportion test):
+n = (z_α × √(p × (1-p) × (1+1/r)) + z_β × √(p1 × (1-p1) + p2 × (1-p2)/r))² / (p2-p1)²
+```
+
+---
+
+## Navigation Updates
+
+### Main Navigation
+
+The main sidebar should include v2 routes:
+
+```
+Dashboard
+├─ Console (/)
+├─ Policy Lab v1 (/policy)
+├─ Causal Design (/causal)
+├─ Portfolio (/portfolio)
+├─ Diagnostics (/diagnostics)
+│
+├─ ─────── v2 ───────
+├─ Policy Lab v2 (/policy-lab-v2) ⭐
+├─ Recourse v2 (/recourse-v2) ⭐
+├─ Experiment Design v2 (/experiment-design-v2) ⭐
+│
+└─ Admin (/admin)
+```
+
+### Badges
+
+Add "v2" badges to distinguish new features:
+```tsx
+<NavLink to="/policy-lab-v2">
+  Policy Lab
+  <span className="badge badge-blue ml-2">v2</span>
+</NavLink>
+```
+
+---
+
+## Responsive Design
+
+All v2 pages follow mobile-first responsive design:
+
+### Breakpoints
+- **Mobile**: < 640px (1 column)
+- **Tablet**: 640px-1024px (2 columns)
+- **Desktop**: > 1024px (full layout)
+
+### Grid System
+
+```tsx
+// 1 column on mobile, 2 on tablet, 3 on desktop
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+```
+
+### Charts
+- ResponsiveContainer from Recharts
+- Width: 100% (fluid)
+- Height: Fixed (400px for main charts, 300px for cards)
+
+---
+
+## Accessibility
+
+### ARIA Labels
+```tsx
+<button aria-label="Generate recourse plan">
+  Generate
+</button>
+```
+
+### Keyboard Navigation
+- Tab order: Top to bottom, left to right
+- Enter: Submit forms
+- Escape: Close modals
+- Arrow keys: Navigate charts (Recharts built-in)
+
+### Screen Reader Support
+- Semantic HTML (`<nav>`, `<main>`, `<article>`)
+- Labels for all form inputs
+- Status announcements for async operations:
+  ```tsx
+  <div role="status" aria-live="polite">
+    {isLoading ? "Loading..." : "Loaded"}
+  </div>
+  ```
+
+---
+
+## Performance Optimizations
+
+### Code Splitting
+```tsx
+// Lazy load v2 pages
+const PolicyLabV2 = lazy(() => import('./pages/PolicyLabV2'))
+const RecourseV2 = lazy(() => import('./pages/RecourseV2'))
+const ExperimentDesignV2 = lazy(() => import('./pages/ExperimentDesignV2'))
+```
+
+### Data Fetching
+- React Query for caching
+- Stale time: 5 minutes
+- Refetch on window focus: disabled for heavy queries
+- Polling: Only when status is "pending" or "running"
+
+### Chart Rendering
+- Debounced resize handlers
+- Memoized data transformations
+- Virtualization for large datasets (future)
+
+---
+
+## Error Handling
+
+### API Errors
+
+```tsx
+{generateRecourseMutation.isError && (
+  <div className="alert alert-error">
+    <Icon />
+    <div>
+      <h4>Error generating recourse plan</h4>
+      <p>{error.message}</p>
+    </div>
+  </div>
+)}
+```
+
+### Empty States
+
+```tsx
+{!recoursePlan && (
+  <div className="empty-state">
+    <Icon className="w-16 h-16 text-gray-400" />
+    <h3>No Recourse Plan Yet</h3>
+    <p>Fill in the form to get started</p>
+  </div>
+)}
+```
+
+### Loading States
+
+```tsx
+{isLoading && (
+  <div className="loading-spinner">
+    <Spinner />
+    <p>Loading policies...</p>
+  </div>
+)}
+```
+
+---
+
+## Component Library
+
+All v2 pages use consistent components:
+
+### Cards
+```tsx
+<div className="card">
+  <div className="card-header">
+    <h2 className="card-title">Title</h2>
+    <p className="card-subtitle">Subtitle</p>
+  </div>
+  <div className="card-body">
+    Content
+  </div>
+</div>
+```
+
+### Buttons
+```tsx
+<button className="btn btn-primary">Primary</button>
+<button className="btn btn-secondary">Secondary</button>
+<button className="btn btn-sm">Small</button>
+```
+
+### Badges
+```tsx
+<span className="badge badge-blue">Running</span>
+<span className="badge badge-green">Completed</span>
+<span className="badge badge-gray">Draft</span>
+```
+
+### Forms
+```tsx
+<div className="form-group">
+  <label className="form-label">Label</label>
+  <input type="text" className="form-input" />
+</div>
+```
+
+### Modals
+```tsx
+<div className="modal-overlay" onClick={onClose}>
+  <div className="modal-content">
+    <div className="modal-header">
+      <h2 className="modal-title">Title</h2>
+      <button className="modal-close">×</button>
+    </div>
+    <div className="modal-body">...</div>
+    <div className="modal-footer">
+      <button className="btn btn-secondary">Cancel</button>
+      <button className="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+```
+
+---
+
+## Future Enhancements
+
+### Phase 2 (Optional):
+1. **Batch Operations**: Upload CSV for batch recourse
+2. **Experiment Monitoring**: Real-time results dashboard
+3. **Policy Comparison**: Side-by-side policy comparison
+4. **Export**: PDF reports for all v2 features
+5. **Collaboration**: Share recourse plans via URL
+6. **Notifications**: Email/Slack alerts for experiment completion
+
+### Phase 3 (Advanced):
+1. **Interactive Tuning**: Drag sliders to see power curve update
+2. **What-If Analysis**: Real-time recourse preview
+3. **AutoML**: Automatic policy hyperparameter tuning
+4. **Multi-Objective**: Pareto frontier with 3+ objectives (3D viz)
+

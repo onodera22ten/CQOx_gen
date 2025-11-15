@@ -1,0 +1,139 @@
+---
+# API Service (Stable)
+apiVersion: v1
+kind: Service
+metadata:
+  name: cqox-api-stable
+  namespace: cqox-production
+  labels:
+    app: cqox-api
+    service: stable
+spec:
+  type: ClusterIP
+  selector:
+    app: cqox-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP
+  sessionAffinity: None
+
+---
+# API Service (Canary)
+apiVersion: v1
+kind: Service
+metadata:
+  name: cqox-api-canary
+  namespace: cqox-production
+  labels:
+    app: cqox-api
+    service: canary
+spec:
+  type: ClusterIP
+  selector:
+    app: cqox-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP
+
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  namespace: cqox-production
+  labels:
+    app: postgresql
+spec:
+  type: ClusterIP
+  selector:
+    app: postgresql
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
+
+---
+# Redis Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: cqox-production
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+
+---
+# RabbitMQ Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: cqox-production
+  labels:
+    app: rabbitmq
+spec:
+  type: ClusterIP
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+      protocol: TCP
+    - name: management
+      port: 15672
+      targetPort: 15672
+      protocol: TCP
+
+---
+# Prometheus Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: observability
+  labels:
+    app: prometheus
+spec:
+  type: ClusterIP
+  selector:
+    app: prometheus
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+
+---
+# Grafana Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: observability
+  labels:
+    app: grafana
+spec:
+  type: ClusterIP
+  selector:
+    app: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
