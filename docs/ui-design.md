@@ -210,32 +210,34 @@ graph TB
 
 ---
 
-### 2. Decision Console (DecisionConsole.tsx)
+### 2. Decision Console (DecisionConsole.tsx) 【v1】
+
+**機能スコープ**: Δ¥（デルタ円）と Go/Canary/Hold 判定を最優先表示するマーケティング意思決定ダッシュボード
 
 ```mermaid
 graph TB
     subgraph "Decision Console Layout"
-        HEADER[ページヘッダー<br/>Decision Console]
+        HEADER[ページヘッダー<br/>Decision Console - マーケ施策意思決定]
 
         subgraph "Metrics Overview Cards (4 columns)"
-            CARD1[アクティブポリシー<br/>数値 + トレンド]
-            CARD2[実行中モデル<br/>数値 + プログレス]
-            CARD3[平均 CAS スコア<br/>数値 + ゲージ]
-            CARD4[推定 ROI<br/>数値 + グラフ]
+            CARD1[今週のベストシナリオ Δ¥<br/>数値 + レンジ + Go/Canary]
+            CARD2[リスク高シナリオ数<br/>Hold判定数 + 理由内訳]
+            CARD3[実行推奨キャンペーン<br/>Go判定数 + 期待収益合計]
+            CARD4[A/Bテスト候補<br/>Canary判定数]
         end
 
         subgraph "Main Content (2 columns)"
-            LEFT[左カラム (60%)]
-            RIGHT[右カラム (40%)]
+            LEFT[左カラム (65%)]
+            RIGHT[右カラム (35%)]
 
             subgraph "Left Column"
-                RECENT[最近のポリシー<br/>テーブル表示]
-                ACTIONS[クイックアクション]
+                DECISION_CARDS[最新 Decision Cards 一覧<br/>Δ¥ランキング順（降順）]
+                QUICK_ACTIONS[クイックアクション]
             end
 
             subgraph "Right Column"
-                CHART[CAS スコア推移<br/>折れ線グラフ]
-                ACTIVITY[最近のアクティビティ<br/>タイムライン]
+                DELTA_YEN_CHART[Δ¥推移（週次）<br/>棒グラフ]
+                VERDICT_DISTRIBUTION[判定内訳<br/>円グラフ: Go/Canary/Hold]
             end
         end
     end
@@ -248,11 +250,11 @@ graph TB
     CARD1 --> LEFT
     CARD2 --> RIGHT
 
-    LEFT --> RECENT
-    RECENT --> ACTIONS
+    LEFT --> DECISION_CARDS
+    DECISION_CARDS --> QUICK_ACTIONS
 
-    RIGHT --> CHART
-    CHART --> ACTIVITY
+    RIGHT --> DELTA_YEN_CHART
+    DELTA_YEN_CHART --> VERDICT_DISTRIBUTION
 
     classDef header fill:#1976d2,stroke:#0d47a1,stroke-width:2px,color:#fff
     classDef metric fill:#4caf50,stroke:#2e7d32,stroke-width:2px,color:#fff
@@ -260,58 +262,95 @@ graph TB
 
     class HEADER header
     class CARD1,CARD2,CARD3,CARD4 metric
-    class RECENT,ACTIONS,CHART,ACTIVITY content
+    class DECISION_CARDS,QUICK_ACTIONS,DELTA_YEN_CHART,VERDICT_DISTRIBUTION content
 ```
 
 #### 詳細仕様
 
-**レイアウト**
+**レイアウト（マーケティング意思決定最優先版）**
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Decision Console                                   [↻ 更新] │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐            │
-│ │アクティブ│ │実行中   │ │平均CAS  │ │推定ROI  │            │
-│ │ポリシー │ │モデル   │ │スコア   │ │        │            │
-│ │   24    │ │    3    │ │  78.5   │ │ +32.4% │            │
-│ │  ↑ +3   │ │ ⚙ 実行中│ │  ━━━●━  │ │ ↗️ 📈  │            │
-│ └─────────┘ └─────────┘ └─────────┘ └─────────┘            │
-│                                                               │
-├────────────────────────────┬─────────────────────────────────┤
-│ 最近のポリシー            │ CAS スコア推移                  │
-│ ────────────────────────── │ ──────────────────────────────  │
-│                            │                                 │
-│ Policy Name      Status    │     100│     ╱─╲                │
-│ ──────────────────────────│      80│   ╱     ╲              │
-│ Marketing Opt.  ✅ 完了   │      60│ ╱         ╲╱           │
-│ Sales Channel   ⏳ 実行中 │      40│╱                        │
-│ Product Mix     ✅ 完了   │      20│                         │
-│ Pricing Strat.  📝 作成中 │       0└─────────────────────    │
-│ Customer Seg.   ✅ 完了   │         Jan  Feb  Mar  Apr       │
-│                            │                                 │
-│ [全て表示]                │ ─────────────────────────────── │
-│                            │ 最近のアクティビティ            │
-│ ────────────────────────── │                                 │
-│ クイックアクション        │ ⏰ 2 min ago                    │
-│ ──────────────────────────│ ✅ Policy "Marketing Opt."      │
-│ [+ 新しいポリシー]        │    completed successfully        │
-│ [📊 レポート作成]         │                                 │
-│ [📁 データアップロード]   │ ⏰ 15 min ago                   │
-│                            │ 🚀 Started training model       │
-│                            │    for "Sales Channel"          │
-│                            │                                 │
-│                            │ ⏰ 1 hour ago                   │
-│                            │ 📤 Dataset "Q4_2024.csv"        │
-│                            │    uploaded by user@ex.com      │
-└────────────────────────────┴─────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│ Decision Console - マーケ施策意思決定                      [↻ 更新]  │
+├───────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐             │
+│ │今週のベスト│ │リスク高   │ │実行推奨   │ │A/Bテスト  │             │
+│ │シナリオΔ¥ │ │シナリオ数 │ │キャンペーン│ │候補       │             │
+│ │ +¥2.8M    │ │    7      │ │    12     │ │    4      │             │
+│ │¥2.1M〜3.5M│ │Overlap低3 │ │期待+¥18M  │ │CI幅広4    │             │
+│ │🟢 Go      │ │🔴 Hold    │ │🟢 Go      │ │🟡 Canary  │             │
+│ └───────────┘ └───────────┘ └───────────┘ └───────────┘             │
+│                                                                        │
+├──────────────────────────────────────┬────────────────────────────────┤
+│ 📊 Decision Cards（Δ¥ランキング順） │ 📈 Δ¥推移（週次）             │
+│ ──────────────────────────────────── │ ───────────────────────────── │
+│                                       │                                │
+│ ┌───────────────────────────────────┐│   4M│         ▅                │
+│ │ 🟢 Go | Push通知 最適化 #1       ││   3M│       ▅ █                │
+│ │ ────────────────────────────────  ││   2M│     ▅ █ █   ▅            │
+│ │ Δ¥: +¥2.8M (¥2.1M〜¥3.5M)        ││   1M│   ▅ █ █ █ ▅ █            │
+│ │ チャネル: アプリPush               ││   0 └─────────────────────    │
+│ │ セグメント: RFM High-Value        ││      W1 W2 W3 W4 W5 今週       │
+│ │ 品質: Overlap 0.92, IV F=48.3     ││                                │
+│ └───────────────────────────────────┘│ ───────────────────────────── │
+│                                       │ 判定内訳（今週）               │
+│ ┌───────────────────────────────────┐│      ┌───────┐                │
+│ │ 🟢 Go | メール配信 A/Bテスト後 #2 ││      │  Go   │   52%          │
+│ │ ────────────────────────────────  ││      │ 🟢    │                │
+│ │ Δ¥: +¥1.9M (¥1.5M〜¥2.3M)        ││  🟡  │       │  🔴            │
+│ │ チャネル: Email                    ││ 26%  │       │ 22%            │
+│ │ セグメント: 30-40代女性            ││Canary│       │Hold            │
+│ └───────────────────────────────────┘│      └───────┘                │
+│                                       │                                │
+│ ┌───────────────────────────────────┐│ クイックアクション             │
+│ │ 🟡 Canary | LINE配信 Budget+10% #3││ ───────────────────────────── │
+│ │ ────────────────────────────────  ││ [+ 新シナリオ作成]             │
+│ │ Δ¥: +¥1.2M (¥0.3M〜¥2.1M)        ││ [📊 週次レポート]              │
+│ │ チャネル: LINE                     ││ [📁 データアップロード]        │
+│ │ 理由: CI幅広い → A/Bテスト推奨    ││                                │
+│ └───────────────────────────────────┘│                                │
+│                                       │                                │
+│ ┌───────────────────────────────────┐│                                │
+│ │ 🔴 Hold | Web広告 予算2倍 #4      ││                                │
+│ │ ────────────────────────────────  ││                                │
+│ │ Δ¥: +¥0.5M (-¥0.2M〜¥1.2M)       ││                                │
+│ │ チャネル: Google Ads               ││                                │
+│ │ 理由: Overlap低0.58 → 識別不可    ││                                │
+│ └───────────────────────────────────┘│                                │
+│                                       │                                │
+│ [全て表示（24件）]                   │                                │
+└──────────────────────────────────────┴────────────────────────────────┘
 ```
 
-**コンポーネント構成**
-- `MetricCard`: 再利用可能なメトリクスカード (数値、ラベル、トレンド、アイコン)
-- `PolicyTable`: ポリシー一覧テーブル (ソート、フィルタリング機能付き)
-- `LineChart`: Recharts を使用した折れ線グラフ
-- `ActivityTimeline`: アクティビティのタイムライン表示
+**コンポーネント構成（マーケティング特化）**
+- `DeltaYenMetricCard`: Δ¥メトリクスカード（数値、レンジ、verdict色分け）
+- `DecisionCardList`: Decision Card一覧（Δ¥ランキング順、Go/Canary/Holdバッジ付き）
+- `DecisionCardItem`: 個別Decision Cardコンポーネント
+  - フィールド: verdict（🟢Go / 🟡Canary / 🔴Hold）、Δ¥、CI、チャネル、セグメント、品質スコア
+  - カラー: Go=緑、Canary=黄、Hold=赤のボーダー
+- `DeltaYenBarChart`: Recharts棒グラフ（週次Δ¥推移）
+- `VerdictPieChart`: Recharts円グラフ（Go/Canary/Hold内訳）
+
+**Decision Card データモデル**
+```typescript
+interface DecisionCard {
+  id: string
+  scenario_name: string              // 例: "Push通知 最適化 #1"
+  verdict: "Go" | "Canary" | "Hold"  // 判定
+  delta_yen: number                  // Δ¥期待値
+  delta_yen_ci_low: number           // 95%信頼区間下限
+  delta_yen_ci_high: number          // 95%信頼区間上限
+  channel: string                    // チャネル: "アプリPush", "Email", etc.
+  segment: string                    // セグメント: "RFM High-Value", etc.
+  quality_scores: {
+    overlap_coverage: number         // 0.92
+    iv_f_stat: number                // 48.3
+    rd_mccrary_p?: number            // 0.12 (RDの場合)
+  }
+  reason?: string                    // Hold/Canary理由
+  created_at: string
+}
+```
 
 **データフロー**
 ```mermaid
@@ -320,36 +359,47 @@ sequenceDiagram
     participant API as API Client
     participant Backend as FastAPI
 
-    Component->>API: GET /api/v1/console/metrics
+    Component->>API: GET /api/v1/console/delta-yen-summary
     API->>Backend: Request with JWT
-    Backend-->>API: { active_policies: 24, running_models: 3, ... }
+    Backend-->>API: { best_delta_yen: 2800000, high_risk_count: 7, ... }
     API-->>Component: Update state
-    Component->>Component: Render MetricCards
+    Component->>Component: Render DeltaYenMetricCards
 
-    Component->>API: GET /api/v1/policies?limit=5
+    Component->>API: GET /api/v1/results?sort_by=delta_yen&order=desc&limit=10
     API->>Backend: Request
-    Backend-->>API: [ {id, name, status, ...}, ... ]
-    API-->>Component: Update policies state
-    Component->>Component: Render PolicyTable
+    Backend-->>API: [ DecisionCard[], ... ] (Δ¥降順)
+    API-->>Component: Update decision_cards state
+    Component->>Component: Render DecisionCardList (Δ¥ランキング)
 
-    Component->>API: GET /api/v1/console/cas-history
+    Component->>API: GET /api/v1/console/delta-yen-history?period=week
     API->>Backend: Request
-    Backend-->>API: [ {date, score}, ... ]
+    Backend-->>API: [ {week: "W1", delta_yen: 1500000}, ... ]
     API-->>Component: Update chart data
-    Component->>Component: Render LineChart
+    Component->>Component: Render DeltaYenBarChart
+
+    Component->>API: GET /api/v1/console/verdict-distribution
+    API->>Backend: Request
+    Backend-->>API: { go: 12, canary: 4, hold: 7 }
+    API-->>Component: Update pie chart data
+    Component->>Component: Render VerdictPieChart
 ```
 
-**インタラクション**
-- メトリクスカードクリック → 該当するページへ遷移
-- ポリシー行クリック → ポリシー詳細ページへ
-- 更新ボタン → すべてのデータを再取得
-- クイックアクションボタン → 対応するページまたはモーダルを表示
+**インタラクション（マーケ責任者視点）**
+- Δ¥メトリクスカードクリック → 該当判定（Go/Canary/Hold）のDecision Card一覧にフィルタ
+- Decision Cardクリック → 詳細ページ（ScenarioSpec比較、推定器結果、Diagnostics詳細）
+- 🟢 Go判定カード → 「このシナリオを実行」ボタン表示（v2で実装予定）
+- 🟡 Canary判定カード → 「A/Bテスト設計」ボタン表示（Experiment Design v2へ遷移）
+- 🔴 Hold判定カード → 理由表示（Overlap低、IV弱、RD不合格等）
+- 更新ボタン → すべてのデータを再取得（5秒ポーリング）
+- クイックアクション → 新シナリオ作成、週次レポート生成、データアップロード
 
 ---
 
-### 3. Policy Lab (PolicyLab.tsx)
+### 3. Policy Lab (PolicyLab.tsx) 【v1】
 
+**機能スコープ**: ポリシー（施策）の作成・一覧・詳細表示
 **権限**: `models:write` 必須
+**v2との違い**: v2 (PolicyLabV2.tsx)ではOffline Policy LearningとPareto frontier可視化を追加
 
 ```mermaid
 graph TB
@@ -484,7 +534,9 @@ graph TB
 
 ---
 
-### 4. Causal Design (CausalDesign.tsx)
+### 4. Causal Design (CausalDesign.tsx) 【v1】
+
+**機能スコープ**: 因果グラフ可視化・データアップロード（v1では基本機能のみ）
 
 **権限**: `models:read` 必須
 
@@ -634,7 +686,10 @@ sequenceDiagram
 
 ---
 
-### 5. Portfolio & ROI (Portfolio.tsx)
+### 5. Portfolio & ROI (Portfolio.tsx) 【v1/v1.5】
+
+**機能スコープ**: キャンペーン/チャネル別の投資対効果分析
+**マーケ用別名**: 「施策別ROI分析 - どの打ち手が最も効率的か」
 
 **権限**: `policies:read` 必須
 
@@ -747,7 +802,10 @@ graph TB
 
 ---
 
-### 6. Diagnostics (Diagnostics.tsx)
+### 6. Diagnostics (Diagnostics.tsx) 【v1】
+
+**機能スコープ**: Overlap, IV, RD品質チェック・診断結果表示
+**マーケ用説明**: 「施策が識別可能か・信頼できるか を事前診断」
 
 **権限**: `diagnostics:read` 必須
 
@@ -897,7 +955,9 @@ graph TB
 
 ---
 
-### 7. Admin Panel (Admin.tsx)
+### 7. Admin Panel (Admin.tsx) 【v1】
+
+**機能スコープ**: ユーザー管理・監査ログ・システム統計
 
 **権限**: `admin` ロール必須
 

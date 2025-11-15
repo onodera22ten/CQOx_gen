@@ -6,7 +6,112 @@ CQOx (Causal Query Optimizer) は、因果推論とポリシー最適化のた�
 
 ---
 
-## 全体システムアーキテクチャ
+## 実装レイヤーと段階的展開
+
+CQOxは段階的な展開を前提として、3つの実装レイヤーを定義します。
+
+### v1: Single-Node / Docker Compose版（初期デプロイ）
+
+**対象環境**: Fedora/RHEL上での単一ノード展開、またはローカル開発環境
+
+**目的**:
+- オフライン因果推論 + ScenarioSpec + DecisionCard（Δ¥ + Go/Canary/Hold）まで
+- 施策**前**のオフラインポリシー評価（Offline Policy Learning）を主目的
+- 実施済みキャンペーンの事後評価は副次用途
+
+**機能スコープ**:
+- ✅ Data Contract + Mapping + Great Expectations
+- ✅ 因果推論推定器（DR, IPW, DiD, IV, CF, SCM, RD）
+- ✅ ScenarioSpec（S0現行 vs S1候補）+ Money-View（Δ¥計算）
+- ✅ DecisionCard生成（verdict: Go/Canary/Hold）
+- ✅ Decision Console UI（Δ¥ランキング最優先表示）
+- ✅ Diagnostics（Overlap, IV, RD品質チェック）
+- ✅ Portfolio & ROI（キャンペーン/チャネル別投資対効果）
+- ❌ Policy Lab v2（Offline Policy Learning UI）
+- ❌ Recourse v2（個客レベル介入）
+- ❌ Experiment Design v2（A/Bテスト設計）
+
+**技術スタック**:
+- FastAPI (Backend) + React (Frontend) + Nginx
+- PostgreSQL 15 (メタデータ + 結果)
+- Parquet/S3 (データセット保存)
+- Redis (オプション: キャッシュ)
+- Prometheus + Grafana (オプション: 監視)
+
+**最小構成図（v1）**:
+```mermaid
+graph LR
+    Browser[Web Browser] --> Nginx[Nginx<br/>Static + Proxy]
+    Nginx --> FastAPI[FastAPI<br/>v1 API]
+    FastAPI --> PostgreSQL[(PostgreSQL<br/>DATASETS/DECISIONS)]
+    FastAPI --> Parquet[(S3/MinIO<br/>Parquet Files)]
+    FastAPI --> Redis[(Redis<br/>Cache)]
+    FastAPI --> Prometheus[Prometheus<br/>Optional]
+    Prometheus --> Grafana[Grafana<br/>Optional]
+```
+
+**デプロイ方法**: `docker-compose up -d`（全コンポーネント単一ノード）
+
+---
+
+### v2: Policy Lab / Recourse追加（機能拡張）
+
+**対象環境**: v1と同じインフラ上で機能追加（Feature Flag制御）
+
+**追加機能**:
+- ✅ Policy Lab v2: Offline Policy Learning UI
+  - Pareto frontier可視化
+  - Multi-objective最適化（期待値 vs リスク）
+- ✅ Recourse v2: 個客レベル介入計画
+  - Counterfactual生成
+  - コスト/実現可能性評価
+  - **PII非保存**（GDPR準拠）
+- ✅ Experiment Design v2: A/Bテスト設計
+  - サンプルサイズ計算
+  - Power curve可視化
+
+**技術スタック**: v1と同じ（追加なし）
+
+**API名前空間**: `/api/v2/policies`, `/api/v2/recourse`, `/api/v2/experiments`
+
+**v1との関係**:
+- 同じData Contractを共用
+- 同じPostgreSQL/Parquetストレージ
+- UI/APIは別ルート（Feature Flagで非表示可能）
+
+---
+
+### Enterprise: Managed K8s / GitOps / Multi-Tenant（SaaS化）
+
+**対象環境**: AWS EKS / Google GKE / Azure AKS
+
+**目的**:
+- マルチテナント対応
+- 99.9% SLO達成
+- グローバル展開（Multi-Region）
+
+**追加機能**:
+- ✅ Kubernetes + ArgoCD (GitOps)
+- ✅ HashiCorp Vault (シークレット管理)
+- ✅ Multi-Tenancy (PostgreSQL RLS)
+- ✅ Distributed Job Execution (Celery + RabbitMQ)
+- ✅ Canary Deployment (Argo Rollouts)
+- ✅ SLO-based Monitoring (Prometheus + Grafana)
+- ✅ MLOps (モデルバージョニング + ドリフト検出)
+
+**技術スタック追加**:
+- Kubernetes (EKS/GKE/AKS)
+- ArgoCD (GitOps)
+- HashiCorp Vault
+- RabbitMQ (メッセージキュー)
+- Celery Workers (Heavy/Light/Realtime queues)
+- Argo Rollouts (カナリアデプロイ)
+
+**デプロイ方法**: `kubectl apply -f k8s/base/` + ArgoCD自動同期
+
+---
+
+## フルエンタープライズ・システムアーキテクチャ（Enterprise層）
 
 ```mermaid
 graph TB
@@ -243,6 +348,111 @@ graph TB
     class ENCRYPTION,VAULT_MGR,TDE data
     class GDPR,AUDIT,CONSENT compliance
     class RATE_LIMITER,INPUT_VAL,SANITIZATION,CORS_POLICY runtime
+```
+
+---
+
+## データ分類とThreat Model
+
+CQOxでは、扱うデータの機密性レベルに応じて、4段階のデータ分類を定義します。
+
+### データ分類（Data Classification）
+
+| レベル | 分類 | データ種別 | 保存先 | 暗号化 | ログ出力 | 例 |
+|--------|------|-----------|--------|--------|---------|---|
+| **Level 0** | 公開情報 | ヘルプ、FAQ、公開ドキュメント | CDN, S3 Public | 不要 | ✅ 可能 | UI画面、APIドキュメント |
+| **Level 1** | 組織内メタデータ | POLICIES, MODELS, METRICS | PostgreSQL | TDE (透過暗号化) | ✅ 可能（ID、名前のみ） | Policy名、モデルID、CASスコア |
+| **Level 2** | 準機微データ | 集計済みDIAGNOSTICS, DECISIONS | PostgreSQL | TDE + Field-level AES-256 | ⚠️ 集計値のみ | Δ¥集計、Overlap平均値 |
+| **Level 3** | 高機微データ | DATASETS生データ、個客Recourse | Parquet (S3) + PostgreSQL (カラムマッピング) | KMS管理鍵 (AES-256-GCM) | ❌ 禁止 | 個客ID、端末ID、位置情報、個客レベル介入計画 |
+
+### 保護方針（Protection Policy）
+
+#### Level 3（高機微データ）の追加要件:
+- **アクセス制御**: RBAC `data:read_pii` 権限必須（デフォルト付与なし）
+- **監査ログ**: 全アクセスを `AUDIT_LOGS` に記録（誰が・いつ・どのレコードを）
+- **データ保持期間**:
+  - DATASETS: 90日後にGlacier移行、365日後に削除（法的保持義務がある場合は除く）
+  - Recourse結果: **保存しない**（on-the-fly計算のみ、GDPR準拠）
+- **匿名化**:
+  - Diagnostics生成時に個客IDをハッシュ化（`SHA-256(unit_id + salt)`）
+  - DecisionCard生成時にLevel 3データを含めない（集計値のみ）
+- **Right to Erasure**: `/api/v1/gdpr/erasure` APIで指定unit_idの全データを物理削除
+
+#### Level 2（準機微データ）の追加要件:
+- **フィールド暗号化**: `DECISIONS.estimator_results` の詳細結果をAES-256-GCMで暗号化
+- **アクセス制御**: RBAC `models:read` 権限必須
+- **ログ出力**: 集計値（平均、中央値）のみ可、個別値は禁止
+
+### Threat Model
+
+CQOxの主要な脅威シナリオと対策を以下に示します。
+
+| 脅威カテゴリ | 脅威シナリオ | 影響レベル | 対策 | 実装箇所 |
+|------------|------------|-----------|------|---------|
+| **データ漏洩** | 不正アクセスによるDATASETS生データ流出 | 🔴 Critical | KMS暗号化 + RLS + `data:read_pii` 権限 | PostgreSQL RLS, S3 KMS |
+| **データ漏洩** | ログファイルに個客IDが出力される | 🟠 High | ログサニタイゼーション（PII自動マスキング） | Logger middleware |
+| **権限昇格** | Analyst権限のユーザーがAdmin操作を実行 | 🟠 High | RBAC + 最小権限原則 + APIレベル権限チェック | RBAC Engine |
+| **注入攻撃** | SQLインジェクションによるDB改ざん | 🟠 High | ORMプリペアドステートメント + Input Validation | FastAPI + SQLAlchemy |
+| **DoS** | 大量リクエストによるサービス停止 | 🟡 Medium | Rate Limiting (100 req/min) + WAF | Redis + AWS WAF |
+| **セッションハイジャック** | JWT改ざんによる不正ログイン | 🟡 Medium | JWT署名検証 (RS256) + 短期有効期限 (15分) | Auth middleware |
+| **データ推論** | 集計APIから個客情報を逆算 | 🟡 Medium | k-匿名性 (k≥5) + 差分プライバシー（ε=1.0） | Diagnostics API |
+| **内部不正** | 管理者による不正データアクセス | 🟡 Medium | 監査ログ + 4-eyes principle（重要操作は2名承認） | AUDIT_LOGS |
+
+#### 差分プライバシー適用例（v2以降）
+
+Level 3データの集計値を返すAPIでは、以下のLaplace Mechanismを適用：
+
+```python
+def add_laplace_noise(true_value: float, sensitivity: float, epsilon: float = 1.0) -> float:
+    """
+    差分プライバシーノイズ追加
+
+    Args:
+        true_value: 真の集計値
+        sensitivity: クエリの感度（最大変化量）
+        epsilon: プライバシーパラメータ（小さいほど強いプライバシー保護）
+
+    Returns:
+        ノイズ付き集計値
+    """
+    scale = sensitivity / epsilon
+    noise = np.random.laplace(0, scale)
+    return true_value + noise
+
+# 使用例: Δ¥平均値を返す際
+true_mean_delta_yen = 15000.0
+sensitivity = 100000.0  # 1レコードの最大影響額
+noisy_mean = add_laplace_noise(true_mean_delta_yen, sensitivity, epsilon=1.0)
+# → 例: 15234.5（ノイズ追加済み）
+```
+
+#### k-匿名性チェック（v2以降）
+
+セグメント単位の集計を返す前に、k≥5 を保証：
+
+```python
+def check_k_anonymity(df: pd.DataFrame, quasi_identifiers: list[str], k: int = 5) -> bool:
+    """
+    k-匿名性チェック
+
+    Args:
+        df: データフレーム
+        quasi_identifiers: 準識別子カラム（例: ["age_group", "prefecture", "gender"]）
+        k: 最小グループサイズ
+
+    Returns:
+        全グループがk件以上ならTrue
+    """
+    group_sizes = df.groupby(quasi_identifiers).size()
+    min_group_size = group_sizes.min()
+    return min_group_size >= k
+
+# 使用例: 都道府県×年齢層別のΔ¥を返す前
+if not check_k_anonymity(df, ["prefecture", "age_group"], k=5):
+    raise HTTPException(
+        status_code=400,
+        detail="Cannot return aggregation: k-anonymity violation (some groups < 5)"
+    )
 ```
 
 ---
@@ -496,6 +706,7 @@ erDiagram
     }
 
     POLICIES ||--o{ MODELS : contains
+    POLICIES ||--o{ DECISIONS : produces
     POLICIES {
         uuid id PK
         uuid user_id FK
@@ -505,6 +716,22 @@ erDiagram
         string status
         timestamp created_at
         timestamp completed_at
+    }
+
+    DECISIONS {
+        uuid id PK
+        uuid policy_id FK
+        uuid scenario_id FK
+        string scenario_name
+        float delta_yen
+        float delta_yen_ci_low
+        float delta_yen_ci_high
+        float delta_yen_std
+        string verdict
+        json quality_scores
+        json scenario_spec
+        json estimator_results
+        timestamp created_at
     }
 
     MODELS {
@@ -550,9 +777,318 @@ erDiagram
     }
 ```
 
+### DECISIONSテーブル詳細説明
+
+**目的**: ScenarioSpec（S0現行 vs S1候補）の比較結果と、Go/Canary/Hold判定を保存する。
+
+**フィールド詳細**:
+- `delta_yen`: S1 - S0 の期待Δ¥（円）
+- `delta_yen_ci_low` / `delta_yen_ci_high`: 95% 信頼区間
+- `delta_yen_std`: Δ¥の標準偏差
+- `verdict`: 意思決定判定
+  - `"Go"`: リスク低、Δ¥有意にプラス → すぐ実施推奨
+  - `"Canary"`: Δ¥プラスだがCI幅広い or 品質スコア中程度 → A/Bテスト推奨
+  - `"Hold"`: Overlap低 / IV弱 / RD品質不合格 → 実施非推奨
+- `quality_scores`: 品質メトリクス
+  ```json
+  {
+    "overlap_coverage": 0.85,
+    "iv_f_stat": 42.3,
+    "rd_mccrary_p": 0.12,
+    "balance_score": 0.92
+  }
+  ```
+- `scenario_spec`: S0/S1のポリシー定義（再現性のため保存）
+- `estimator_results`: 使用した推定器（DR, IPW等）の詳細結果
+
 ---
 
-## Kubernetesデプロイメントアーキテクチャ
+## 用語集とデータモデル対応表
+
+CQOxでは、UI/仕様書/DB/APIで異なる用語が使われることがあるため、以下に統一的な対応表を示します。
+
+| 概念 | v1仕様書での用語 | DBテーブル | v1 API | v2 API | 説明 |
+|------|-----------------|-----------|--------|--------|------|
+| **データセット** | Dataset | `DATASETS` | `/api/v1/upload` | `/api/v2/datasets` | アップロードされた生データ（Parquet） |
+| **シナリオ/ポリシー** | Scenario / Policy | `POLICIES` | `/api/v1/analyze` | `/api/v2/policies` | S0（現行）/ S1（候補）の施策定義 |
+| **意思決定カード** | DecisionCard | `DECISIONS` | `/api/v1/results` | - | Δ¥ + verdict (Go/Canary/Hold) |
+| **推定器/モデル** | Estimator / Model | `MODELS` | `/api/v1/analyze` | `/api/v2/policies/{id}/offline-learn` | DR, IPW, DiD等の因果推論モデル |
+| **診断結果** | Diagnostics | `DIAGNOSTICS` | `/api/v1/diagnostics` | - | Overlap, IV, RD品質チェック |
+| **介入計画** | Intervention / Recourse | `INTERVENTIONS` | - | `/api/v2/recourse` | 個客レベル施策（v2のみ） |
+| **メトリクス** | Metrics | `METRICS` | `/api/v1/metrics` | `/api/v2/metrics` | 時系列パフォーマンス指標 |
+| **実験設計** | Experiment Design | - | - | `/api/v2/experiments` | A/Bテストサンプルサイズ計算（v2のみ） |
+
+### v1 API エンドポイント仕様（標準）
+
+| エンドポイント | メソッド | 目的 | 対応DBテーブル |
+|--------------|---------|------|---------------|
+| `/api/v1/upload` | POST | データセットアップロード | `DATASETS` |
+| `/api/v1/analyze/comprehensive` | POST | 因果推論実行（S0/S1比較） | `POLICIES`, `MODELS`, `DECISIONS` |
+| `/api/v1/scenario/run` | POST | ScenarioSpec実行（エイリアス） | `DECISIONS` |
+| `/api/v1/results/{job_id}` | GET | DecisionCard取得 | `DECISIONS` |
+| `/api/v1/diagnostics/{job_id}` | GET | 品質診断結果取得 | `DIAGNOSTICS` |
+| `/api/v1/events/{job_id}` | GET | ジョブ進捗（SSE or ポーリング） | `JOBS` |
+
+### v2 API エンドポイント仕様（追加機能）
+
+| エンドポイント | メソッド | 目的 | 対応DBテーブル |
+|--------------|---------|------|---------------|
+| `/api/v2/policies` | POST/GET | Policy Lab v2（Pareto frontier） | `POLICIES`, `OFFLINE_POLICY_RUNS` |
+| `/api/v2/recourse/{unit_id}` | POST | 個客レベル介入計画（PII非保存） | - (on-the-fly) |
+| `/api/v2/experiments/design` | POST | A/Bテストサンプルサイズ計算 | `EXPERIMENT_DESIGNS` |
+
+**重要**: v1とv2は同じData Contractを共用し、同じPostgreSQL/Parquetストレージを使用します。
+
+---
+
+## v1 API詳細仕様とData Contract
+
+### v1プロダクトの目的と位置づけ
+
+**CQOx v1は「施策前のオフラインポリシー評価」を主目的とします。**
+
+- **主目的**: 施策**前**に、S0（現行運用）vs S1（候補ポリシー）を比較し、Δ¥（デルタ円）と Go/Canary/Hold 判定を返す
+- **副次用途**: 実施済みキャンペーンの事後評価（ログデータからの因果効果推定）
+- **対象ユーザー**: マーケティング責任者、キャンペーンマネージャー、データアナリスト
+
+**v2との関係**:
+- v2（Policy Lab / Recourse / Experiment Design）は、v1と同じData Contractを共用するが、API/UI は別名前空間
+- v1完成後にv2を追加する段階的展開を前提
+
+---
+
+### Data Contract仕様（v1/v2共通）
+
+#### required_setsの型定義（統一）
+
+**重要**: `required_sets` は `list[list[str]]`（二次元配列）として統一します。
+
+```python
+# 正しい型定義
+def validate_contract(
+    dataset_id: str,
+    required_sets: list[list[str]]  # 重ね合わせ可能なルール集合
+) -> tuple[bool, list[str]]:
+    """
+    Data Contract検証
+
+    Args:
+        dataset_id: データセットID
+        required_sets: 必須カラムセットのリスト
+            例: [["y", "treatment"], ["unit_id", "time"]]
+            → ["y", "treatment"] AND ["unit_id", "time"] が必要
+
+    Returns:
+        (ok, missing): 検証結果と欠損カラムリスト
+    """
+    pass
+
+# 使用例
+ok, missing = validate_contract(
+    "dataset-abc",
+    required_sets=[
+        ["y", "treatment", "unit_id", "time"],  # Base set
+        ["propensity_score"]                     # Propensity set（オプション）
+    ]
+)
+```
+
+**Base set 定義**:
+- **Outcome set**: `["y"]` - 結果変数（必須）
+- **Treatment set**: `["treatment"]` - 介入変数（必須）
+- **Unit set**: `["unit_id"]` - 単位ID（必須）
+- **Time set**: `["time"]` - 時刻（DiD, RD以外はオプション）
+
+**Estimator別required_sets**:
+```python
+ESTIMATOR_REQUIRED_SETS = {
+    "DR": [["y", "treatment", "unit_id"], ["propensity_score"]],  # Doubly Robust
+    "IPW": [["y", "treatment", "unit_id", "propensity_score"]],   # Inverse Propensity Weighting
+    "DiD": [["y", "treatment", "unit_id", "time", "post"]],       # Difference-in-Differences
+    "IV": [["y", "treatment", "unit_id", "instrument"]],          # Instrumental Variables
+    "CF": [["y", "treatment"] + feature_cols],                    # Causal Forest
+    "SCM": [["y", "unit_id", "time"]],                            # Synthetic Control
+    "RD": [["y", "treatment", "running_variable"]],               # Regression Discontinuity
+}
+```
+
+---
+
+#### カラムマッピング（Column Mapping）仕様
+
+**目的**: ユーザーのカラム名を標準カラム名にマッピングする。
+
+**保存先**: PostgreSQL の `column_mapping_profiles` テーブル
+
+```sql
+CREATE TABLE column_mapping_profiles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,                     -- 例: "KARTE Push通知 v1"
+    source_system VARCHAR(100),                     -- 例: "KARTE", "Salesforce"
+    mapping_json JSONB NOT NULL,                    -- マッピング定義
+    version VARCHAR(20) DEFAULT '1.0',
+    tenant_id UUID,                                  -- マルチテナント対応
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_column_mapping_profiles_tenant ON column_mapping_profiles(tenant_id);
+CREATE INDEX idx_column_mapping_profiles_source ON column_mapping_profiles(source_system);
+```
+
+**mapping_json フォーマット**:
+```json
+{
+  "y": "revenue",
+  "treatment": "received_push",
+  "unit_id": "user_id",
+  "time": "event_timestamp",
+  "propensity_score": "ps_model_v1",
+  "features": ["age", "gender", "prefecture", "rfm_segment"]
+}
+```
+
+**API フロー**:
+1. POST `/api/v1/upload` → データセットアップロード
+2. レスポンスに `candidate_profiles: [{id, name}, ...]` を含む
+3. UI側で「既存プロファイルを使う / 新規作成」を選択
+4. POST `/api/v1/datasets/{id}/apply-mapping` → マッピング適用
+
+---
+
+### 品質ゲート条件（Quality Gate）
+
+CQOxでは、品質チェックの結果に応じて2段階の判定を行います。
+
+#### レベル1: API 400エラー（契約違反・識別不能 → 走らない）
+
+| 条件 | 説明 | HTTPステータス |
+|------|------|----------------|
+| 必須カラム欠損 | Base set（y, treatment, unit_id）が揃わない | 400 Bad Request |
+| サンプルサイズ不足 | N < N_min（デフォルト1,000行） | 400 Bad Request |
+| 型エラー | y が数値型でない、treatment がバイナリでない等 | 400 Bad Request |
+| Data Contract違反 | required_setsで指定したカラムが存在しない | 400 Bad Request |
+
+**実装例**:
+```python
+@router.post("/api/v1/analyze/comprehensive")
+async def analyze_comprehensive(request: AnalyzeRequest):
+    # Contract検証
+    ok, missing = validate_contract(request.dataset_id, required_sets)
+    if not ok:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Data Contract violation: missing columns {missing}"
+        )
+
+    # サンプルサイズ検証
+    df = load_dataset(request.dataset_id)
+    if len(df) < 1000:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Insufficient sample size: {len(df)} < 1000"
+        )
+
+    # 因果推論実行
+    result = run_causal_inference(df, request.scenario_spec)
+    return result
+```
+
+---
+
+#### レベル2: UI 赤札（DecisionCard verdict = Hold → 走るが採用不可）
+
+| 条件 | 説明 | verdict | 理由 |
+|------|------|---------|------|
+| Overlap coverage < 0.8 | 共通サポート領域が狭い（外挿リスク高） | **Hold** | "Overlap低 → 識別不可" |
+| IV F-stat < 10 | 操作変数が弱い（IV推定不可） | **Hold** | "IV弱 → 識別不可" |
+| RD McCrary test p < 0.05 | カットオフ周辺でソーティング検出 | **Hold** | "RD品質不合格 → バイアス疑い" |
+| Balance score < 0.7 | 共変量バランス不良（DiD前提崩壊） | **Hold** | "Balance不良 → DiD不適" |
+
+**実装例**:
+```python
+def determine_verdict(
+    delta_yen: float,
+    delta_yen_ci_low: float,
+    delta_yen_ci_high: float,
+    quality_scores: dict
+) -> str:
+    """
+    DecisionCard の verdict を決定
+
+    Returns:
+        "Go" | "Canary" | "Hold"
+    """
+    # レベル2: 品質不合格 → Hold
+    if quality_scores.get("overlap_coverage", 1.0) < 0.8:
+        return "Hold"  # Overlap低
+    if quality_scores.get("iv_f_stat", 100) < 10:
+        return "Hold"  # IV弱
+    if quality_scores.get("rd_mccrary_p", 1.0) < 0.05:
+        return "Hold"  # RD品質不合格
+    if quality_scores.get("balance_score", 1.0) < 0.7:
+        return "Hold"  # Balance不良
+
+    # CI幅をチェック（相対幅）
+    ci_width = delta_yen_ci_high - delta_yen_ci_low
+    relative_width = ci_width / abs(delta_yen) if delta_yen != 0 else float('inf')
+
+    # Δ¥有意にプラス かつ CI幅狭い → Go
+    if delta_yen_ci_low > 0 and relative_width < 0.5:
+        return "Go"
+
+    # Δ¥プラスだがCI幅広い → Canary（A/Bテスト推奨）
+    if delta_yen > 0:
+        return "Canary"
+
+    # Δ¥ゼロまたはマイナス → Hold
+    return "Hold"
+```
+
+---
+
+#### UI表示例（Decision Card）
+
+```typescript
+// DecisionCard レンダリング
+const getVerdictBadge = (verdict: string) => {
+  switch (verdict) {
+    case "Go":
+      return <span className="badge bg-green-500">🟢 Go - すぐ実施推奨</span>
+    case "Canary":
+      return <span className="badge bg-yellow-500">🟡 Canary - A/Bテスト推奨</span>
+    case "Hold":
+      return <span className="badge bg-red-500">🔴 Hold - 実施非推奨</span>
+  }
+}
+
+const DecisionCardItem = ({ card }: { card: DecisionCard }) => (
+  <div className={`card border-${getVerdictColor(card.verdict)}`}>
+    {getVerdictBadge(card.verdict)}
+    <h3>{card.scenario_name}</h3>
+    <div className="delta-yen">
+      Δ¥: {formatYen(card.delta_yen)} ({formatYen(card.delta_yen_ci_low)}〜{formatYen(card.delta_yen_ci_high)})
+    </div>
+    <div className="metadata">
+      チャネル: {card.channel}<br/>
+      セグメント: {card.segment}
+    </div>
+    {card.verdict === "Hold" && (
+      <div className="reason text-red-600">
+        理由: {card.reason}
+      </div>
+    )}
+  </div>
+)
+```
+
+---
+
+**重要**: v1とv2は同じData Contractを共用し、同じPostgreSQL/Parquetストレージを使用します。
+
+---
+
+## Kubernetesデプロイメントアーキテクチャ（Enterprise層）
 
 ```mermaid
 graph TB
