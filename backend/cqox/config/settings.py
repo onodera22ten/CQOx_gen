@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     app_name: str = "CQOx"
     debug: bool = False
     api_prefix: str = "/api"
+    api_url: str = "http://localhost:8000"  # For OAuth2 callbacks
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:8000"]
 
     # Database
     database_url: str = "postgresql://cqox:cqox@localhost:5432/cqox"

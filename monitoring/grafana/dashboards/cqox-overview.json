@@ -1,0 +1,57 @@
+{
+  "dashboard": {
+    "title": "CQOx - Overview Dashboard",
+    "tags": ["cqox", "overview"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Request Rate (req/sec)",
+        "type": "graph",
+        "targets": [{
+          "expr": "rate(http_requests_total[5m])"
+        }]
+      },
+      {
+        "id": 2,
+        "title": "Error Rate (%)",
+        "type": "graph",
+        "targets": [{
+          "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m]) * 100"
+        }]
+      },
+      {
+        "id": 3,
+        "title": "Request Duration (p95)",
+        "type": "graph",
+        "targets": [{
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))"
+        }]
+      },
+      {
+        "id": 4,
+        "title": "Model Training Duration (p95)",
+        "type": "graph",
+        "targets": [{
+          "expr": "histogram_quantile(0.95, rate(model_training_duration_seconds_bucket[5m]))"
+        }]
+      },
+      {
+        "id": 5,
+        "title": "CAS Score Distribution",
+        "type": "heatmap",
+        "targets": [{
+          "expr": "cas_score"
+        }]
+      },
+      {
+        "id": 6,
+        "title": "Cache Hit Rate",
+        "type": "stat",
+        "targets": [{
+          "expr": "cache_hit_rate"
+        }]
+      }
+    ]
+  }
+}
