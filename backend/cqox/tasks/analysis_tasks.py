@@ -23,16 +23,18 @@ from cqox.causal.estimators.x_learner import XLearner
 from cqox.causal.estimators.dr_learner import DRLearner
 from cqox.causal.estimators.causal_forest import CausalForest
 
-# Additional ML algorithms
+# Additional causal inference estimators (7 Nobel Prize-winning methods)
 try:
-    from cqox.ml.estimators.did import DiDEstimator
-    from cqox.ml.estimators.iv import IVEstimator
-    from cqox.ml.estimators.rd import RDEstimator
-    from cqox.ml.estimators.scm import SCMEstimator
+    from cqox.causal.estimators.ipw import IPWEstimator
+    from cqox.causal.estimators.did import DIDEstimator
+    from cqox.causal.estimators.iv import IVEstimator
+    from cqox.causal.estimators.rd import RDEstimator
+    from cqox.causal.estimators.scm import SCMEstimator
     ADDITIONAL_ESTIMATORS_AVAILABLE = True
 except ImportError:
     ADDITIONAL_ESTIMATORS_AVAILABLE = False
-    DiDEstimator = None
+    IPWEstimator = None
+    DIDEstimator = None
     IVEstimator = None
     RDEstimator = None
     SCMEstimator = None
@@ -154,19 +156,21 @@ def run_causal_analysis(
         
         asyncio.run(self._update_analysis_status(analysis_id, progress=0.2))
         
-        # Map estimator names to classes
+        # Map estimator names to classes (7 core + meta-learners)
         estimator_map = {
+            # Meta-learners
             's_learner': SLearner,
             't_learner': TLearner,
             'x_learner': XLearner,
             'dr_learner': DRLearner,
             'causal_forest': CausalForest
         }
-        
-        # Add additional estimators if available
+
+        # Add Nobel Prize-winning estimators if available
         if ADDITIONAL_ESTIMATORS_AVAILABLE:
             estimator_map.update({
-                'did': DiDEstimator,
+                'ipw': IPWEstimator,
+                'did': DIDEstimator,
                 'iv': IVEstimator,
                 'rd': RDEstimator,
                 'scm': SCMEstimator
@@ -188,85 +192,61 @@ def run_causal_analysis(
             
             try:
                 # Initialize estimator based on type
-                if estimator_name in ['did', 'iv', 'rd', 'scm']:
-                    # Additional ML algorithms use DataFrame-based interface
-                    if estimator_name == 'did':
-                        # DiD requires time column - use first feature as proxy if not available
-                        time_col = 'time' if 'time' in df.columns else feature_cols[0] if feature_cols else 'x0'
-                        estimator = EstimatorClass(
-                            treatment_col=treatment_col,
-                            outcome_col=outcome_col,
-                            feature_cols=feature_cols,
-                            time_col=time_col,
-                            post_treatment_period=1
-                        )
-                    elif estimator_name == 'iv':
-                        # IV requires instrument column - use first feature as proxy
-                        instrument_col = feature_cols[0] if feature_cols else 'x0'
-                        estimator = EstimatorClass(
-                            treatment_col=treatment_col,
-                            outcome_col=outcome_col,
-                            feature_cols=feature_cols[1:] if len(feature_cols) > 1 else [],
-                            instrument_col=instrument_col
-                        )
-                    elif estimator_name == 'rd':
-                        # RD requires running variable and threshold
-                        running_var = feature_cols[0] if feature_cols else 'x0'
-                        threshold = float(df[running_var].median()) if running_var in df.columns else 0.0
-                        estimator = EstimatorClass(
-                            treatment_col=treatment_col,
-                            outcome_col=outcome_col,
-                            feature_cols=feature_cols[1:] if len(feature_cols) > 1 else [],
-                            running_var=running_var,
-                            threshold=threshold
-                        )
-                    elif estimator_name == 'scm':
-                        # SCM uses causal graph (optional)
-                        estimator = EstimatorClass(
-                            treatment_col=treatment_col,
-                            outcome_col=outcome_col,
-                            feature_cols=feature_cols,
-                            causal_graph=None
-                        )
-                    
-                    # Fit with DataFrame
-                    estimator.fit(df)
-                    
-                    # Estimate ATE (returns tuple: ate, ate_std)
-                    ate, ate_std = estimator.estimate_ate(df)
-                    
-                    # Estimate CATE (if available)
-                    try:
-                        cate = estimator.estimate_cate(df)
-                        cate_mean = float(np.mean(cate)) if cate is not None else float(ate)
-                        cate_std_val = float(np.std(cate)) if cate is not None else float(ate_std)
-                        cate_min = float(np.min(cate)) if cate is not None else float(ate)
-                        cate_max = float(np.max(cate)) if cate is not None else float(ate)
-                    except (AttributeError, NotImplementedError):
-                        # Fallback if CATE not available
-                        cate_mean = float(ate)
-                        cate_std_val = float(ate_std)
-                        cate_min = float(ate)
-                        cate_max = float(ate)
-                
+                if estimator_name == 'did':
+                    # DiD requires time column - use first feature as proxy if not available
+                    time_col = 'time' if 'time' in df.columns else feature_cols[0] if feature_cols else 'x0'
+                    estimator = EstimatorClass(time_col=time_col)
+                    estimator.fit(X, T, y)
+                elif estimator_name == 'iv':
+                    # IV requires instrument column - use first feature as proxy
+                    instrument_col = feature_cols[0] if feature_cols else None
+                    estimator = EstimatorClass(instrument_col=instrument_col)
+                    estimator.fit(X, T, y)
+                elif estimator_name == 'rd':
+                    # RD requires running variable and cutoff
+                    running_var_col = feature_cols[0] if feature_cols else None
+                    cutoff = float(df[running_var_col].median()) if running_var_col and running_var_col in df.columns else 0.0
+                    estimator = EstimatorClass(running_var_col=running_var_col, cutoff=cutoff)
+                    estimator.fit(X, T, y)
+                elif estimator_name == 'scm':
+                    # SCM requires unit and time columns
+                    unit_col = 'unit_id' if 'unit_id' in df.columns else None
+                    time_col = 'time' if 'time' in df.columns else feature_cols[0] if feature_cols else None
+                    # SCM requires treatment time and treated unit - use defaults for now
+                    treatment_time = int(df[time_col].median()) if time_col and time_col in df.columns else 0
+                    treated_unit = df[unit_col].iloc[0] if unit_col and unit_col in df.columns else None
+                    estimator = EstimatorClass(
+                        time_col=time_col,
+                        unit_col=unit_col,
+                        treatment_time=treatment_time,
+                        treated_unit=treated_unit
+                    )
+                    estimator.fit(X, T, y)
                 else:
-                    # Standard causal estimators use (X, T, y) interface
+                    # Standard causal estimators (IPW, DR, S-Learner, T-Learner, etc.)
                     estimator = EstimatorClass()
                     estimator.fit(X, T, y)
-                    
-                    # Estimate ATE
-                    ate = estimator.estimate_ate()
-                    if isinstance(ate, tuple):
-                        ate, ate_std = ate
-                    else:
-                        ate_std = 0.1  # Default if not provided
-                    
-                    # Estimate CATE
+
+                # Estimate ATE (all estimators use same interface now)
+                ate = estimator.estimate_ate()
+                if isinstance(ate, tuple):
+                    ate, ate_std = ate
+                else:
+                    ate_std = 0.1  # Default if not provided
+
+                # Estimate CATE
+                try:
                     cate = estimator.estimate_cate(X)
                     cate_mean = float(np.mean(cate))
                     cate_std_val = float(np.std(cate))
                     cate_min = float(np.min(cate))
                     cate_max = float(np.max(cate))
+                except (AttributeError, NotImplementedError):
+                    # Fallback if CATE not available
+                    cate_mean = float(ate)
+                    cate_std_val = float(ate_std) if 'ate_std' in locals() else 0.1
+                    cate_min = float(ate)
+                    cate_max = float(ate)
                 
                 estimator_time = time.time() - estimator_start
                 
