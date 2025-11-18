@@ -1,0 +1,221 @@
+---
+# Celery Worker Deployment (Heavy Queue)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-heavy
+  namespace: cqox-production
+  labels:
+    app: celery-worker
+    queue: heavy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: celery-worker
+      queue: heavy
+  template:
+    metadata:
+      labels:
+        app: celery-worker
+        queue: heavy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: celery-worker
+
+      containers:
+        - name: worker
+          image: cqox-api:latest
+          command:
+            - celery
+            - -A
+            - cqox.core.distributed_jobs
+            - worker
+            - --loglevel=info
+            - --queues=heavy
+            - --concurrency=2
+            - --max-tasks-per-child=100
+          env:
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: celery-broker-url
+            - name: CELERY_RESULT_BACKEND
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: celery-result-backend
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: redis-url
+
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "1000m"
+            limits:
+              memory: "4Gi"
+              cpu: "2000m"
+
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - cqox.core.distributed_jobs
+                - inspect
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+
+---
+# Celery Worker Deployment (Light Queue)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-light
+  namespace: cqox-production
+  labels:
+    app: celery-worker
+    queue: light
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: celery-worker
+      queue: light
+  template:
+    metadata:
+      labels:
+        app: celery-worker
+        queue: light
+    spec:
+      serviceAccountName: celery-worker
+
+      containers:
+        - name: worker
+          image: cqox-api:latest
+          command:
+            - celery
+            - -A
+            - cqox.core.distributed_jobs
+            - worker
+            - --loglevel=info
+            - --queues=light
+            - --concurrency=4
+            - --max-tasks-per-child=500
+          env:
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: celery-broker-url
+            - name: CELERY_RESULT_BACKEND
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: celery-result-backend
+
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+
+---
+# Celery Worker Deployment (Realtime Queue)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker-realtime
+  namespace: cqox-production
+  labels:
+    app: celery-worker
+    queue: realtime
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: celery-worker
+      queue: realtime
+  template:
+    metadata:
+      labels:
+        app: celery-worker
+        queue: realtime
+    spec:
+      serviceAccountName: celery-worker
+
+      containers:
+        - name: worker
+          image: cqox-api:latest
+          command:
+            - celery
+            - -A
+            - cqox.core.distributed_jobs
+            - worker
+            - --loglevel=info
+            - --queues=realtime
+            - --concurrency=10
+            - --max-tasks-per-child=1000
+          env:
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: celery-broker-url
+            - name: CELERY_RESULT_BACKEND
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: celery-result-backend
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+
+---
+# Horizontal Pod Autoscaler for Heavy Workers
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: celery-worker-heavy-hpa
+  namespace: cqox-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: celery-worker-heavy
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

@@ -1,0 +1,275 @@
+---
+# Argo Rollout for CQOx API with Canary Deployment
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: cqox-api
+  namespace: cqox-production
+  labels:
+    app: cqox-api
+    version: v2
+spec:
+  replicas: 5
+  revisionHistoryLimit: 5
+
+  selector:
+    matchLabels:
+      app: cqox-api
+
+  template:
+    metadata:
+      labels:
+        app: cqox-api
+        version: v2
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: cqox-api
+
+      # Init containers for database migrations
+      initContainers:
+        - name: run-migrations
+          image: cqox-api:latest
+          command: ["python", "-m", "alembic", "upgrade", "head"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: database-url
+
+      containers:
+        - name: api
+          image: cqox-api:latest
+          imagePullPolicy: Always
+
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+
+          env:
+            # Database
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: database-url
+
+            # Redis
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: redis-url
+
+            # Celery
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: celery-broker-url
+
+            - name: CELERY_RESULT_BACKEND
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: celery-result-backend
+
+            # S3
+            - name: S3_BUCKET
+              value: "cqox-production"
+
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: aws-access-key-id
+
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: aws-secret-access-key
+
+            # JWT
+            - name: JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cqox-secrets
+                  key: jwt-secret-key
+
+            # Observability
+            - name: JAEGER_AGENT_HOST
+              value: "jaeger-agent.observability.svc.cluster.local"
+
+            - name: LOG_LEVEL
+              value: "INFO"
+
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 2
+
+          # Security
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
+  # Canary deployment strategy
+  strategy:
+    canary:
+      # Max surge during rollout
+      maxSurge: "25%"
+      maxUnavailable: 0
+
+      # Canary steps
+      steps:
+        # Step 1: Deploy canary with 10% traffic
+        - setWeight: 10
+        - pause:
+            duration: 5m
+
+        # Step 2: Increase to 25% if metrics are good
+        - setWeight: 25
+        - pause:
+            duration: 5m
+
+        # Step 3: Increase to 50%
+        - setWeight: 50
+        - pause:
+            duration: 10m
+
+        # Step 4: Increase to 75%
+        - setWeight: 75
+        - pause:
+            duration: 5m
+
+        # Step 5: Full rollout
+        - setWeight: 100
+
+      # Analysis during canary
+      analysis:
+        templates:
+          - templateName: cqox-api-success-rate
+        startingStep: 1  # Start analysis after first step
+
+        args:
+          - name: service-name
+            value: cqox-api
+          - name: namespace
+            value: cqox-production
+
+      # Traffic routing (for Istio/NGINX)
+      trafficRouting:
+        nginx:
+          stableService: cqox-api-stable
+          canaryService: cqox-api-canary
+
+          # NGINX Ingress annotations
+          annotationPrefix: nginx.ingress.kubernetes.io
+
+          additionalIngressAnnotations:
+            canary-by-header: X-Canary
+            canary-by-header-value: "true"
+
+---
+# Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cqox-api-hpa
+  namespace: cqox-production
+spec:
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: cqox-api
+
+  minReplicas: 3
+  maxReplicas: 20
+
+  metrics:
+    # CPU-based scaling
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+    # Memory-based scaling
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+    # Custom metric: Request rate
+    - type: Pods
+      pods:
+        metric:
+          name: http_requests_per_second
+        target:
+          type: AverageValue
+          averageValue: "1000"
+
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 5 min cooldown before scale down
+      policies:
+        - type: Percent
+          value: 50  # Scale down max 50% at a time
+          periodSeconds: 60
+
+    scaleUp:
+      stabilizationWindowSeconds: 0  # Scale up immediately
+      policies:
+        - type: Percent
+          value: 100  # Double pods if needed
+          periodSeconds: 15
+        - type: Pods
+          value: 4  # Or add 4 pods
+          periodSeconds: 15
+      selectPolicy: Max  # Use max of the two policies
+
+---
+# Pod Disruption Budget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cqox-api-pdb
+  namespace: cqox-production
+spec:
+  minAvailable: 2  # Always keep at least 2 pods running
+  selector:
+    matchLabels:
+      app: cqox-api

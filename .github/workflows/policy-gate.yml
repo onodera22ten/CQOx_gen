@@ -1,0 +1,94 @@
+name: Policy Gate CI
+
+on:
+  pull_request:
+    paths:
+      - 'policies/**'
+  push:
+    paths:
+      - 'policies/**'
+
+jobs:
+  validate-policies:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install pyyaml pydantic loguru
+
+      - name: Validate YAML syntax
+        run: |
+          python -c "
+          import yaml
+          from pathlib import Path
+
+          for policy_file in Path('policies').rglob('*.yaml'):
+              with open(policy_file) as f:
+                  yaml.safe_load(f)
+              print(f'✓ {policy_file}')
+          "
+
+      - name: Validate policy schema
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'backend')
+
+          from pathlib import Path
+          import yaml
+          from cqox.data.schema import Policy
+
+          for policy_file in Path('policies').rglob('*.yaml'):
+              with open(policy_file) as f:
+                  policy_data = yaml.safe_load(f)
+
+              try:
+                  policy = Policy(**policy_data)
+                  print(f'✓ {policy_file}: {policy.name}')
+              except Exception as e:
+                  print(f'✗ {policy_file}: {e}')
+                  sys.exit(1)
+          "
+
+      - name: Check risk constraints
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'backend')
+
+          from pathlib import Path
+          import yaml
+
+          for policy_file in Path('policies').rglob('*.yaml'):
+              with open(policy_file) as f:
+                  policy = yaml.safe_load(f)
+
+              constraints = policy.get('risk_constraints', {})
+
+              # Check minimum overlap
+              if constraints.get('min_overlap', 1.0) < 0.5:
+                  print(f'✗ {policy_file}: min_overlap too low')
+                  sys.exit(1)
+
+              # Check minimum gamma
+              if constraints.get('min_gamma', 0) < 1.2:
+                  print(f'✗ {policy_file}: min_gamma too low')
+                  sys.exit(1)
+
+              print(f'✓ {policy_file}: Risk constraints OK')
+          "
+
+      - name: Policy Gate Summary
+        run: |
+          echo "✅ All policy validations passed!"
+          echo "Policies are ready for deployment."

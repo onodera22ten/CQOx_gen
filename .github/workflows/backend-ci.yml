@@ -1,0 +1,155 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ main, develop, claude/** ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg15
+        env:
+          POSTGRES_USER: cqox
+          POSTGRES_PASSWORD: cqox
+          POSTGRES_DB: cqox_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+        cache-dependency-path: backend/requirements.txt
+
+    - name: Install dependencies
+      run: |
+        cd backend
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-asyncio black flake8 mypy
+
+    - name: Run Black (code formatter check)
+      run: |
+        cd backend
+        black --check cqox/ || echo "Black formatting issues found"
+
+    - name: Run Flake8 (linter)
+      run: |
+        cd backend
+        flake8 cqox/ --count --select=E9,F63,F7,F82 --show-source --statistics
+        flake8 cqox/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+    - name: Run MyPy (type checker)
+      run: |
+        cd backend
+        mypy cqox/ --ignore-missing-imports || echo "Type checking issues found"
+
+    - name: Setup test database
+      env:
+        DATABASE_URL: postgresql://cqox:cqox@localhost:5432/cqox_test
+      run: |
+        cd backend
+        # Run migrations if they exist
+        if [ -f migrations/001_initial_schema.sql ]; then
+          psql $DATABASE_URL -f migrations/001_initial_schema.sql || true
+        fi
+        if [ -f migrations/002_security_and_compliance.sql ]; then
+          psql $DATABASE_URL -f migrations/002_security_and_compliance.sql || true
+        fi
+
+    - name: Run tests with coverage
+      env:
+        DATABASE_URL: postgresql://cqox:cqox@localhost:5432/cqox_test
+        REDIS_URL: redis://localhost:6379/0
+        JWT_SECRET_KEY: test-secret-key-for-ci
+      run: |
+        cd backend
+        pytest tests/ -v --cov=cqox --cov-report=xml --cov-report=term-missing
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./backend/coverage.xml
+        flags: backend
+        name: backend-coverage
+        fail_ci_if_error: false
+
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install safety
+      run: pip install safety
+
+    - name: Run security scan
+      run: |
+        cd backend
+        safety check --file requirements.txt --continue-on-error || echo "Security vulnerabilities found"
+
+    - name: Run Bandit security linter
+      run: |
+        pip install bandit
+        cd backend
+        bandit -r cqox/ -f json -o bandit-report.json || true
+        bandit -r cqox/ || echo "Security issues found"
+
+  build-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        cd backend
+        pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Check imports
+      run: |
+        cd backend
+        python -c "import cqox.api.main; print('✓ Imports successful')"

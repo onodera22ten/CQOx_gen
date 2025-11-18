@@ -1,0 +1,47 @@
+# Minimal requirements for basic API functionality
+# This will be extended incrementally
+
+# FastAPI and web framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+python-multipart==0.0.6
+
+# Database
+asyncpg==0.29.0
+sqlalchemy[asyncio]==2.0.25
+
+# Redis
+redis[hiredis]==5.0.1
+
+# Observability
+loguru==0.7.2
+opentelemetry-api==1.22.0
+opentelemetry-sdk==1.22.0
+opentelemetry-instrumentation-fastapi==0.43b0
+opentelemetry-instrumentation-asyncpg==0.43b0
+opentelemetry-instrumentation-redis==0.43b0
+opentelemetry-exporter-jaeger==1.21.0
+prometheus-client==0.19.0
+
+# JWT and Security
+pyjwt==2.8.0
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+
+# Celery (without heavy ML deps)
+celery==5.3.4
+kombu==5.3.4
+
+# Lightweight data processing
+numpy==1.26.4
+pandas==2.1.4
+python-dateutil==2.8.2
+
+# HTTP client
+httpx==0.26.0
+
+# Environment
+python-dotenv==1.0.0
+
