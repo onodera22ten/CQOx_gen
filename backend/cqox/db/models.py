@@ -41,7 +41,7 @@ class Dataset(Base):
     upload_timestamp = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    metadata = Column(JSON)
+    extra_metadata = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy reserved word
     status = Column(String(50), default="uploaded", index=True)
 
     # Relationships
@@ -88,7 +88,7 @@ class Decision(Base):
     risk_score = Column(Numeric(3, 2))
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    metadata = Column(JSON)
+    extra_metadata = Column(JSON)  # Renamed from 'metadata' to avoid SQLAlchemy reserved word
 
     # Relationships
     user = relationship("User", back_populates="decisions")

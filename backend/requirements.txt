@@ -1,79 +1,40 @@
-# FastAPI and web framework
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-pydantic==2.5.3
-pydantic-settings==2.1.0
-python-multipart==0.0.6
-email-validator==2.1.0
-
-# Data processing
-pandas==2.1.4
-numpy==1.26.4
-polars==0.20.3
-pyarrow==14.0.2
-duckdb==0.9.2
-
-# Machine Learning - Causal Inference
-scikit-learn==1.4.0
-econml==0.15.1
-causalml==0.15.1
-pygam==0.9.0
-
-
-# Statistical libraries
-scipy==1.11.4
-statsmodels==0.14.1
-matplotlib==3.8.2
-seaborn==0.13.1
-
-# Optimization
-cvxpy==1.4.2
-pulp==2.7.0
-
-# Reinforcement Learning
-gym==0.26.2
+# Core Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
 
 # Database
-sqlalchemy==2.0.25
-psycopg2-binary==2.9.9
-alembic==1.13.1
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.9
+alembic>=1.12.0
 
 # Authentication & Security
-pyjwt==2.8.0
-passlib==1.7.4
-bcrypt==4.1.2
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
 
-# Async / Task Queue
-celery==5.3.6
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
 
-# Utilities
-pyyaml==6.0.1
-python-dotenv==1.0.0
-loguru==0.7.2
-tqdm==4.66.1
+# HTTP Client
+httpx>=0.25.0
 
-# Testing
-pytest==7.4.4
-pytest-asyncio==0.23.3
-pytest-cov==4.1.0
-httpx==0.26.0
+# Logging
+loguru>=0.7.2
 
-# Type checking
-mypy==1.8.0
+# Task Queue (optional)
+celery[redis]>=5.3.4
 
-# Monitoring and Observability
-prometheus-client==0.19.0
-opentelemetry-api==1.22.0
-opentelemetry-sdk==1.22.0
-opentelemetry-instrumentation-fastapi==0.43b0
-opentelemetry-instrumentation-asyncpg==0.43b0
-opentelemetry-instrumentation-redis==0.43b0
-opentelemetry-exporter-jaeger==1.21.0
+# Caching
+redis>=5.0.0
 
-# Storage
-asyncpg==0.29.0
-aioboto3==12.3.0
-redis[hiredis]==5.0.1
+# Environment
+python-dotenv>=1.0.0
 
-# Additional dependencies
-structlog==24.1.0
+# Development
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+black>=23.11.0
+mypy>=1.7.0
