@@ -22,6 +22,7 @@ from cqox.config import settings
 from cqox.api.routes import datasets, policies, causal, diagnostics, portfolio, console, upload, visualizations, admin
 from cqox.api.routes.v1 import v1_router
 from cqox.api.routes.v2 import v2_router
+from cqox.api.routes import auth as auth_routes
 
 # Layer 2: Observability
 from cqox.monitoring.metrics import (
@@ -786,6 +787,9 @@ async def logout(user: TokenData = Depends(get_current_user)):
 
 
 app.include_router(auth_router)
+
+# Include new SQLAlchemy-based auth router (preferred for /auth/login)
+app.include_router(auth_routes.router)
 
 
 # ============================================================================

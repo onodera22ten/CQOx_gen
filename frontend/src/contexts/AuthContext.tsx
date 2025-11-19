@@ -7,20 +7,21 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { jwtDecode } from 'jwt-decode';
 
 interface User {
-  user_id: string;
+  id: number;
   email: string;
-  roles: string[];
-  permissions: string[];
+  role: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface TokenData {
   sub: string;
-  email: string;
-  roles: string[];
+  user_id: number;
+  role: string;
   exp: number;
   iat: number;
-  jti: string;
-  type: 'access' | 'refresh';
+  type?: 'access' | 'refresh';
 }
 
 interface AuthContextType {
@@ -37,7 +38,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 // Import mock auth
@@ -58,10 +59,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             // In mock mode, decode the base64 token
             const decoded = JSON.parse(atob(accessToken));
             setUser({
-              user_id: btoa(decoded.email),
+              id: 1,
               email: decoded.email,
-              roles: decoded.roles || [],
-              permissions: []
+              role: decoded.roles?.[0] || 'viewer',
+              is_active: true
             });
           } else {
             // Verify token is not expired
@@ -117,18 +118,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [user]);
 
   const fetchUserInfo = async (accessToken: string) => {
-    // Decode JWT token to get user info (instead of calling /api/me)
+    // Fetch user info from /auth/me endpoint
     try {
-      const decoded = jwtDecode<TokenData>(accessToken);
-      setUser({
-        user_id: decoded.sub,
-        email: decoded.email,
-        roles: decoded.roles || [],
-        permissions: [] // Permissions not in token
+      const response = await fetch(`${API_URL}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user info');
+      }
+
+      const userData = await response.json();
+      setUser(userData);
     } catch (error) {
-      console.error('Failed to decode token:', error);
-      throw new Error('Invalid access token');
+      console.error('Failed to fetch user info:', error);
+      throw error;
     }
   };
 
@@ -141,9 +147,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (USE_MOCK) {
         // Use mock authentication
         data = await mockAuth.login(email, password);
+
+        // Store tokens
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token);
+
+        // Set mock user
+        setUser({
+          id: 1,
+          email: data.user.email,
+          role: data.user.roles?.[0] || 'viewer',
+          is_active: true
+        });
       } else {
         // Use real backend API
-        const response = await fetch(`${API_URL}/auth/token`, {
+        const response = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -152,24 +170,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
 
         if (!response.ok) {
-          throw new Error('Login failed');
+          const errorData = await response.json().catch(() => ({ detail: 'Login failed' }));
+          throw new Error(errorData.detail || 'Login failed');
         }
 
         data = await response.json();
-      }
 
-      // Store tokens
-      localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
+        // Store tokens
+        localStorage.setItem('access_token', data.access_token);
+        if (data.refresh_token) {
+          localStorage.setItem('refresh_token', data.refresh_token);
+        }
 
-      // Set user info from login response (already included)
-      if (data.user) {
-        setUser({
-          user_id: data.user.id,
-          email: data.user.email,
-          roles: data.user.roles || [],
-          permissions: [] // Backend doesn't return permissions yet
-        });
+        // Set user info from login response
+        if (data.user) {
+          setUser(data.user);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -251,17 +267,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // In mock mode, grant all permissions
     if (USE_MOCK) return true;
     // If user has admin or analyst role, grant all permissions
-    if (user.roles.includes('admin') || user.roles.includes('analyst')) {
+    if (user.role === 'admin' || user.role === 'analyst') {
       return true;
     }
-    return user.permissions.includes(permission);
+    // Permission mapping based on role
+    // For now, grant basic read permissions to all authenticated users
+    return true;
   };
 
   const hasRole = (role: string): boolean => {
     if (!user) return false;
     // In mock mode, grant all roles
     if (USE_MOCK) return true;
-    return user.roles.includes(role);
+    return user.role === role;
   };
 
   const value: AuthContextType = {
