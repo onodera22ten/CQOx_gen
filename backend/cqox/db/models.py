@@ -31,12 +31,16 @@ class Dataset(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
+    description = Column(Text)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     file_path = Column(Text, nullable=False)
     file_size = Column(BigInteger)
     row_count = Column(Integer)
     column_count = Column(Integer)
+    columns_info = Column(JSON)  # Column names and types
     upload_timestamp = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     metadata = Column(JSON)
     status = Column(String(50), default="uploaded", index=True)
 

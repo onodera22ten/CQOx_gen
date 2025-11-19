@@ -23,6 +23,7 @@ from cqox.api.routes import datasets, policies, causal, diagnostics, portfolio, 
 from cqox.api.routes.v1 import v1_router
 from cqox.api.routes.v2 import v2_router
 from cqox.api.routes import auth as auth_routes
+from cqox.api.routes import datasets_v2
 
 # Layer 2: Observability
 from cqox.monitoring.metrics import (
@@ -791,13 +792,16 @@ app.include_router(auth_router)
 # Include new SQLAlchemy-based auth router (preferred for /auth/login)
 app.include_router(auth_routes.router)
 
+# Include new SQLAlchemy-based datasets router (v2)
+app.include_router(datasets_v2.router, prefix=f"{settings.api_prefix}")
+
 
 # ============================================================================
 # CORE ROUTES
 # ============================================================================
 
 # Include existing routers (with optional authentication)
-app.include_router(datasets.router, prefix=f"{settings.api_prefix}/datasets", tags=["datasets"])
+# app.include_router(datasets.router, prefix=f"{settings.api_prefix}/datasets", tags=["datasets"])  # Replaced by datasets_v2
 app.include_router(policies.router, prefix=f"{settings.api_prefix}/policies", tags=["policies"])
 app.include_router(causal.router, prefix=f"{settings.api_prefix}/causal", tags=["causal"])
 app.include_router(diagnostics.router, prefix=f"{settings.api_prefix}/diagnostics", tags=["diagnostics"])
