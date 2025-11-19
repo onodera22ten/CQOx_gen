@@ -1,0 +1,202 @@
+# CQOx Local Development - Full Stack with Monitoring
+# Run: docker compose -f infra/docker-compose.local.yml up -d
+# Access: http://localhost:3001 (Frontend)
+
+version: '3.9'
+
+services:
+  # PostgreSQL Database with TimescaleDB
+  postgres:
+    image: timescale/timescaledb:latest-pg15
+    container_name: cqox-postgres
+    environment:
+      POSTGRES_USER: cqox
+      POSTGRES_PASSWORD: cqox_dev_password
+      POSTGRES_DB: cqox_dev
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cqox"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cqox-network
+
+  # Redis Cache & Session Store
+  redis:
+    image: redis:7-alpine
+    container_name: cqox-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cqox-network
+
+  # RabbitMQ Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: cqox-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: cqox
+      RABBITMQ_DEFAULT_PASS: cqox_dev_password
+    ports:
+      - "5672:5672"
+      - "15672:15672"  # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - cqox-network
+
+  # Backend API (FastAPI)
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: cqox-backend
+    env_file:
+      - ../config/app.env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cqox:cqox_dev_password@postgres:5432/cqox_dev
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: amqp://cqox:cqox_dev_password@rabbitmq:5672//
+      PYTHONPATH: /app
+      APP_ENV: local
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ../backend:/app
+      - ../data/uploads:/app/data/uploads
+      - ../artifacts:/app/artifacts
+      - backend_logs:/app/logs
+    command: uvicorn cqox.api.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - cqox-network
+
+  # Celery Worker (ML Task Processing)
+  celery-worker:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: cqox-celery-worker
+    env_file:
+      - ../config/app.env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cqox:cqox_dev_password@postgres:5432/cqox_dev
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: amqp://cqox:cqox_dev_password@rabbitmq:5672//
+      PYTHONPATH: /app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - ../backend:/app
+      - ../data/uploads:/app/data/uploads
+      - ../artifacts:/app/artifacts
+      - ../models:/app/models
+    command: celery -A cqox.tasks.celery_app worker --loglevel=info --concurrency=2 --max-tasks-per-child=10
+    networks:
+      - cqox-network
+
+  # Frontend (React + Vite)
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.dev
+    container_name: cqox-frontend
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:8000
+      NODE_ENV: development
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0 --port 3001
+    networks:
+      - cqox-network
+
+  # Prometheus (Metrics Collection)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cqox-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    depends_on:
+      - backend
+    networks:
+      - cqox-network
+
+  # Grafana (Monitoring Dashboards)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cqox-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    networks:
+      - cqox-network
+
+networks:
+  cqox-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  backend_logs:
+  prometheus_data:
+  grafana_data:
