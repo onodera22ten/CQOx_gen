@@ -1,124 +1,61 @@
-# Docker Compose for CQOx Local Development
-# Run: docker compose up -d
+version: '3.8'
 
 services:
-  # PostgreSQL Database
   postgres:
-    image: timescale/timescaledb:latest-pg15
-    container_name: cqox-postgres
+    image: postgres:15-alpine
+    container_name: cqox_postgres
     environment:
-      POSTGRES_USER: cqox
-      POSTGRES_PASSWORD: cqox_dev_password
-      POSTGRES_DB: cqox_dev
-    ports:
-      - "5434:5432"
+      POSTGRES_DB: ${POSTGRES_DB:-cqox}
+      POSTGRES_USER: ${POSTGRES_USER:-cqox}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cqox_password_change_me}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - cqox_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cqox"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: cqox-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-
-  # RabbitMQ
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: cqox-rabbitmq
+  backend:
+    build: ./backend
+    container_name: cqox_backend
     environment:
-      RABBITMQ_DEFAULT_USER: cqox
-      RABBITMQ_DEFAULT_PASS: cqox_dev_password
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-
-  # API
-  api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: cqox-api
-    environment:
-      DATABASE_URL: postgresql+asyncpg://cqox:cqox_dev_password@postgres:5432/cqox_dev
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: amqp://cqox:cqox_dev_password@rabbitmq:5672//
-      PYTHONPATH: /app
+      DATABASE_URL: postgresql://cqox:cqox_password_change_me@postgres:5432/cqox
+      SECRET_KEY: ${SECRET_KEY:-your-secret-key-change-me}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@cqox.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin_password_change_me}
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-      rabbitmq:
-        condition: service_healthy
     volumes:
       - ./backend:/app
-      - ./data/uploads:/app/data/uploads
-      - api_logs:/app/logs
-    command: uvicorn cqox.api.main:app --host 0.0.0.0 --port 8000 --reload
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      - artifacts:/app/artifacts
+    networks:
+      - cqox_network
 
-  # Celery Worker
-  celery_worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: cqox-celery-worker
-    environment:
-      DATABASE_URL: postgresql+asyncpg://cqox:cqox_dev_password@postgres:5432/cqox_dev
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: amqp://cqox:cqox_dev_password@rabbitmq:5672//
-      PYTHONPATH: /app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-      rabbitmq:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - ./data/uploads:/app/data/uploads
-    command: celery -A cqox.tasks.celery_app worker --loglevel=info --concurrency=2
-
-  # Frontend (optional - for full-stack local dev)
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: cqox-frontend
+    build: ./frontend
+    container_name: cqox_frontend
     ports:
-      - "3000:80"
-    depends_on:
-      - api
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - cqox_network
     environment:
-      VITE_API_URL: http://localhost:8000
+      - VITE_API_URL=http://localhost:8000
 
 volumes:
   postgres_data:
-  redis_data:
-  api_logs:
-  rabbitmq_data:
+  artifacts:
+
+networks:
+  cqox_network:
+    driver: bridge
