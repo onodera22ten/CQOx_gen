@@ -8,6 +8,49 @@
 
 ---
 
+## 🚀 Quick Start (5 minutes)
+
+```bash
+# 1. Clone repository
+git clone https://github.com/onodera22ten/CQOx_gen.git
+cd CQOx_gen
+
+# 2. Initialize database
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python -m cqox.db.init_db
+
+# 3. Start backend
+uvicorn cqox.api.main:app --reload --port 8000
+
+# 4. Start frontend (new terminal)
+cd ../frontend
+npm install
+npm run dev
+
+# 5. Open browser
+# http://localhost:3001
+# Login: admin@cqox.local / admin_password_change_me
+```
+
+**What you get:**
+- ✅ Full authentication system (JWT + OAuth2)
+- ✅ Dataset upload (CSV/Parquet)
+- ✅ Causal inference engine (7 estimators)
+- ✅ Decision console with Go/Canary/Hold verdicts
+- ✅ Real-time analysis tracking
+
+**Next steps:**
+1. Upload your dataset → Causal Design page
+2. Select treatment/outcome columns
+3. Run analysis (DR-Learner, IPW, etc.)
+4. View results in Decision Console
+5. Track Δ¥ (delta yen) impact
+
+---
+
 ## 📊 System Overview
 
 ```mermaid
@@ -1286,6 +1329,115 @@ graph LR
 | Concurrent analyses | 250 | Queue depth managed by RabbitMQ, no failures |
 | Concurrent users | 5,000 | Backend auto-scaled to 12 pods, avg latency 89ms |
 | Database size | 500GB | TimescaleDB compression ratio 20:1 for time-series data |
+
+---
+
+## 🐳 Production Deployment
+
+### Docker Compose (Recommended for local deployment)
+
+```bash
+# 1. Set environment variables
+cp config/app.env.example config/app.env
+# Edit config/app.env with your settings
+
+# 2. Start all services
+docker-compose -f infra/docker-compose.local.yml up -d
+
+# Services:
+# - PostgreSQL + TimescaleDB (port 5432)
+# - Redis (port 6379)
+# - RabbitMQ (port 5672, UI: 15672)
+# - Backend API (port 8000)
+# - Celery Worker
+# - Frontend (port 3001)
+# - Prometheus (port 9090)
+# - Grafana (port 3000)
+```
+
+### Database Initialization
+
+```bash
+# Run database initialization
+docker exec -it cqox-backend python -m cqox.db.init_db
+
+# This creates:
+# - Database tables (users, datasets, analyses, decisions)
+# - Admin user (from ADMIN_EMAIL and ADMIN_PASSWORD env vars)
+```
+
+### Environment Configuration
+
+**Required Environment Variables:**
+
+```bash
+# Database
+DATABASE_URL=postgresql+psycopg2://cqox:password@postgres:5432/cqox_dev
+
+# Authentication
+SECRET_KEY=your-secret-key-change-in-production
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# Admin Account
+ADMIN_EMAIL=admin@cqox.local
+ADMIN_PASSWORD=admin_password_change_me
+
+# API
+API_URL=http://localhost:8000
+VITE_API_URL=http://localhost:8000
+```
+
+### Health Checks
+
+```bash
+# Backend API health
+curl http://localhost:8000/health
+
+# Database connection
+curl http://localhost:8000/api/datasets
+
+# Metrics endpoint (Prometheus)
+curl http://localhost:8000/metrics
+```
+
+### Backup & Recovery
+
+```bash
+# Backup database
+docker exec cqox-postgres pg_dump -U cqox cqox_dev > backup.sql
+
+# Restore database
+cat backup.sql | docker exec -i cqox-postgres psql -U cqox cqox_dev
+
+# Backup user uploads
+tar -czf uploads_backup.tar.gz data/uploads/
+```
+
+### Monitoring
+
+**Prometheus Metrics:**
+- Request count/duration by endpoint
+- Active analyses
+- Dataset upload stats
+- Database connection pool
+
+**Grafana Dashboards:**
+- Access: http://localhost:3000
+- Default credentials: admin/admin
+- Pre-configured CQOx dashboard
+
+### Security Checklist
+
+- [ ] Change default admin password
+- [ ] Generate strong SECRET_KEY (32+ characters)
+- [ ] Enable HTTPS in production
+- [ ] Configure firewall rules
+- [ ] Set up regular database backups
+- [ ] Review and update dependencies
+- [ ] Enable rate limiting
+- [ ] Configure CORS origins
 
 ---
 
