@@ -449,23 +449,27 @@ graph LR
 
 ### 📊 Competitive Landscape Visualization
 
+CQOx belongs to the same "**incrementality measurement**" space as Haus, Incrmnta, and Sellforte SaaS tools, as well as specialized uplift consulting firms. However, our positioning and value proposition differ significantly:
+
+| Dimension | CQOx | Haus / Incrmnta / Sellforte | Uplift Consulting Firms |
+|-----------|------|------------------------------|-------------------------|
+| **Product vs Consulting Dependency** | **Self-serve product**. Upload CSV/Parquet and analysts can run analyses independently without vendor support | Tool + vendor support required. Initial setup and design typically require external resources | Almost fully consulting-driven. Analysis through insight delivery depends on external teams |
+| **Causal Inference Transparency** | **20+ estimators (DR/IPW/DiD/IV/CF/SCM/RD) implemented as OSS**. Algorithms can be validated and extended in-house | Some implementations are black-box. Modeling details and reproducible code often not provided | Analysis logic summarized in reports only. Code and models typically not delivered |
+| **Self-Hosting / Security Requirements** | **Self-hostable (on-prem / VPC / K8s)**. Data never leaves your infrastructure | Primarily managed SaaS. Difficult to use with strict PII or regulatory requirements | Analysis requires data transfer. Operates under NDA but assumes routine data exports |
+| **Multi-Estimator & Quality Gates** | **7 primary estimators + OPE/g-computation combinations**. Quality gates (Overlap, weak IV, RD manipulation tests) enforced in UI | Focused evaluation on specific methods. Quality inspection internals are tool-dependent and often opaque | Ad-hoc method selection per project. Quality standards vary across engagements |
+
 ```mermaid
 quadrantChart
-    title Causal Inference Tools: Capability vs Production-Readiness
-    x-axis Low Production-Readiness --> High Production-Readiness
-    y-axis Low Causal Capability --> High Causal Capability
-    quadrant-1 Leaders
-    quadrant-2 Research Tools
-    quadrant-3 Basic Tools
-    quadrant-4 Enterprise SaaS
-    CQOx: [0.9, 0.95]
-    EconML: [0.2, 0.85]
-    DoWhy: [0.15, 0.80]
-    CausalML: [0.25, 0.75]
-    Google Optimize: [0.75, 0.30]
-    Adobe Target: [0.80, 0.25]
-    Optimizely: [0.70, 0.35]
-    ChatGPT/Claude: [0.85, 0.10]
+    title Incrementality Tools: Transparency vs Self-Serve
+    x-axis Low Transparency --> High Transparency
+    y-axis High Services-Dependency --> Self-Serve Product
+    quadrant-1 Self-Serve & Transparent
+    quadrant-2 Research-Oriented
+    quadrant-3 Heavy Consulting & Black-Box
+    quadrant-4 SaaS-Led
+    CQOx: [0.85, 0.90]
+    Haus/Incrmnta/Sellforte: [0.40, 0.60]
+    UpliftConsulting: [0.20, 0.30]
 ```
 
 ### vs. Causal Inference Libraries (EconML, DoWhy, CausalML)
@@ -945,84 +949,6 @@ helm install cqox cqox/cqox \
 - Zero-downtime deployments: Rolling updates with health checks
 - Secrets management: Integrated with HashiCorp Vault
 
-#### Kubernetes Architecture Diagram
-
-```mermaid
-graph TB
-    subgraph "External"
-        Users[Users]
-        LB[Load Balancer<br/>nginx-ingress]
-    end
-
-    subgraph "Kubernetes Cluster"
-        subgraph "Frontend Deployment"
-            FE1[Frontend Pod 1<br/>React 18]
-            FE2[Frontend Pod 2<br/>React 18]
-            FE3[Frontend Pod 3<br/>React 18]
-        end
-
-        subgraph "Backend Deployment"
-            BE1[Backend Pod 1<br/>FastAPI]
-            BE2[Backend Pod 2<br/>FastAPI]
-            BE3[Backend Pod 3<br/>FastAPI]
-            BE4[Backend Pod 4<br/>FastAPI]
-        end
-
-        subgraph "Worker Deployment"
-            W1[Celery Worker 1]
-            W2[Celery Worker 2]
-            W3[Celery Worker 3]
-            W4[Celery Worker 4]
-            W5[Celery Worker 5]
-            W6[Celery Worker 6]
-            W7[Celery Worker 7]
-            W8[Celery Worker 8]
-        end
-
-        subgraph "StatefulSets"
-            PG1[(PostgreSQL<br/>Primary)]
-            PG2[(PostgreSQL<br/>Replica 1)]
-            PG3[(PostgreSQL<br/>Replica 2)]
-            Redis1[(Redis<br/>Primary)]
-            Redis2[(Redis<br/>Replica)]
-            RMQ[RabbitMQ<br/>Cluster]
-        end
-
-        subgraph "Monitoring"
-            Prom[Prometheus]
-            Graf[Grafana]
-            Alert[Alertmanager]
-        end
-
-        HPA1[HPA<br/>Frontend<br/>2-10 pods]
-        HPA2[HPA<br/>Backend<br/>2-20 pods]
-        HPA3[HPA<br/>Workers<br/>4-16 pods]
-    end
-
-    Users --> LB
-    LB --> FE1 & FE2 & FE3
-    FE1 & FE2 & FE3 --> BE1 & BE2 & BE3 & BE4
-    BE1 & BE2 & BE3 & BE4 --> W1 & W2 & W3 & W4 & W5 & W6 & W7 & W8
-    BE1 & BE2 & BE3 & BE4 --> PG1 & Redis1 & RMQ
-    W1 & W2 & W3 & W4 & W5 & W6 & W7 & W8 --> PG1 & Redis1 & RMQ
-    PG1 -.Replication.-> PG2 & PG3
-    Redis1 -.Replication.-> Redis2
-    BE1 & BE2 & BE3 & BE4 --> Prom
-    W1 & W2 & W3 & W4 --> Prom
-    Prom --> Graf & Alert
-
-    HPA1 -.Scales.-> FE1 & FE2 & FE3
-    HPA2 -.Scales.-> BE1 & BE2 & BE3 & BE4
-    HPA3 -.Scales.-> W1 & W2 & W3 & W4
-
-    style PG1 fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:2px
-    style W1 fill:#ef4444,stroke:#dc2626,color:#fff,stroke-width:2px
-    style W2 fill:#ef4444,stroke:#dc2626,color:#fff,stroke-width:2px
-    style W3 fill:#ef4444,stroke:#dc2626,color:#fff,stroke-width:2px
-    style W4 fill:#ef4444,stroke:#dc2626,color:#fff,stroke-width:2px
-    style Prom fill:#06b6d4,stroke:#0891b2,color:#fff,stroke-width:2px
-```
-
 ### AWS / GCP / Azure
 
 See [deployment documentation](docs/deployment/) for cloud-specific guides.
@@ -1365,23 +1291,7 @@ graph LR
 
 ## Contributing
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-**Areas we need help**:
-1. Additional estimators (Synthetic DiD, Matrix Completion)
-2. Real-time streaming inference
-3. AutoML for propensity score modeling
-4. Additional export formats (Tableau, PowerBI)
-5. Localization (Japanese, Spanish, German)
-
-**Code Style**:
-- Python: PEP 8, Black, isort, mypy
-- TypeScript: ESLint, Prettier
-- Commit messages: Conventional Commits
-
-**Testing Requirements**:
-- Backend: >80% coverage (pytest + pytest-cov)
-- Frontend: >75% coverage (Vitest + Playwright)
+For detailed contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
