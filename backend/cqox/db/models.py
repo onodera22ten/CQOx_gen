@@ -82,11 +82,12 @@ class Decision(Base):
     policy_name = Column(String(255))
     verdict = Column(String(20), nullable=False, index=True)  # 'Go', 'Canary', 'Hold'
     delta_yen = Column(Numeric(15, 2))
-    delta_yen_ci_low = Column(Numeric(15, 2))
-    delta_yen_ci_high = Column(Numeric(15, 2))
+    confidence_interval_low = Column(Numeric(15, 2))
+    confidence_interval_high = Column(Numeric(15, 2))
     cas_score = Column(Numeric(3, 2))
     risk_score = Column(Numeric(3, 2))
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     metadata = Column(JSON)
 
     # Relationships
