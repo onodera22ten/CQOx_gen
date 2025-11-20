@@ -50,6 +50,7 @@ export default function Layout() {
     <div className="layout">
       <nav className="sidebar">
         <div className="logo">
+          <img src="/logo_cqox.svg" alt="CQOx Logo" style={{ width: '48px', height: '48px', marginBottom: '0.5rem' }} />
           <h1>CQOx</h1>
           <p>Causal Query Optimizer</p>
         </div>
