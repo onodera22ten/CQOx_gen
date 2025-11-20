@@ -19,11 +19,11 @@ class Settings(BaseSettings):
     # Authentication (set to True in development to skip auth)
     skip_auth: bool = True
 
-    # Database
-    database_url: str = "postgresql://cqox:cqox@localhost:5432/cqox"
+    # Database (reads from DATABASE_URL environment variable)
+    database_url: str = "postgresql://cqox:cqox@postgres:5432/cqox"
 
-    # Redis (for Celery)
-    redis_url: str = "redis://localhost:6379/0"
+    # Redis (for Celery and rate limiting)
+    redis_url: str = "redis://redis:6379/0"
 
     # Data paths
     # Base directory for data/models/config/artifacts

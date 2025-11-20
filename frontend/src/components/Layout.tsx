@@ -22,7 +22,7 @@ export default function Layout() {
 
   // Filter nav items based on user permissions/roles
   const visibleNavItems = navItems.filter(item => {
-    if (item.role && user && !user.roles.includes(item.role)) {
+    if (item.role && user && user.roles && !user.roles.includes(item.role)) {
       return false;
     }
     return true;
@@ -68,7 +68,7 @@ export default function Layout() {
               {user.email}
             </div>
             <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-              {user.roles.map((role) => (
+              {user.roles && user.roles.map((role) => (
                 <span
                   key={role}
                   className={getRoleBadgeColor(role)}

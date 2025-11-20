@@ -10,6 +10,7 @@ interface User {
   id: number;
   email: string;
   role: string;
+  roles?: string[];  // Add roles array for compatibility
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
@@ -62,6 +63,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               id: 1,
               email: decoded.email,
               role: decoded.roles?.[0] || 'viewer',
+              roles: decoded.roles || ['viewer'],
               is_active: true
             });
           } else {
@@ -157,6 +159,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           id: 1,
           email: data.user.email,
           role: data.user.roles?.[0] || 'viewer',
+          roles: data.user.roles || ['viewer'],
           is_active: true
         });
       } else {

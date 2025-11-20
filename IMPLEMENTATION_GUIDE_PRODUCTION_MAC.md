@@ -240,8 +240,10 @@ Database initialization complete!
 ### 5.1 ブラウザでアクセス
 
 ```
-http://localhost:3000
+http://localhost:3001
 ```
+
+**注意**: ポート3000がGrafanaなど他のサービスで使用されている場合、CQOxフロントエンドはポート3001で起動します。
 
 ### 5.2 ログイン
 
@@ -314,7 +316,7 @@ Error: bind: address already in use
 **解決方法:**
 ```bash
 # 使用中のプロセスを確認
-lsof -i :3000
+lsof -i :3001
 lsof -i :8000
 
 # 該当プロセスを停止
@@ -454,7 +456,7 @@ cp .env.example .env
 nano .env  # パスワード設定
 docker compose up -d
 docker compose exec backend python cqox/db/init_db.py
-# ブラウザで http://localhost:3000 を開く
+# ブラウザで http://localhost:3001 を開く
 ```
 
 ### 停止手順
