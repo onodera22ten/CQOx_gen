@@ -182,11 +182,11 @@ const UploadModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         <h2 className="text-2xl font-bold mb-4">新規データセット</h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">CSVファイル</label>
+            <label className="block text-sm font-medium mb-2">データファイル</label>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition-colors">
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.json,.xlsx,.xls,.parquet,.pq"
                 onChange={handleFileChange}
                 className="hidden"
                 id="file-upload"
@@ -199,7 +199,8 @@ const UploadModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                 ) : (
                   <>
                     <p className="text-sm text-gray-600">クリックしてファイルを選択</p>
-                    <p className="text-xs text-gray-400 mt-1">CSV形式のファイルをアップロード</p>
+                    <p className="text-xs text-gray-400 mt-1">対応形式: CSV, JSON, Excel (.xlsx/.xls), Parquet</p>
+                    <p className="text-xs text-gray-400">最大100MB まで対応</p>
                   </>
                 )}
               </label>
