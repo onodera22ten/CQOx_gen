@@ -20,12 +20,14 @@ def upgrade() -> None:
     # Create datasets table
     op.create_table(
         'datasets',
-        sa.Column('id', sa.String(), nullable=False),
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('name', sa.String(), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('file_path', sa.String(), nullable=True),
         sa.Column('row_count', sa.Integer(), nullable=True),
         sa.Column('column_count', sa.Integer(), nullable=True),
+        sa.Column('schema', postgresql.JSON(astext_type=sa.Text()), nullable=True),
+        sa.Column('tenant_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=True),
         sa.Column('updated_at', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('id')
@@ -34,11 +36,11 @@ def upgrade() -> None:
     # Create policies table
     op.create_table(
         'policies',
-        sa.Column('id', sa.String(), nullable=False),
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column('name', sa.String(), nullable=False),
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('status', sa.String(), nullable=True),
-        sa.Column('dataset_id', sa.String(), nullable=True),
+        sa.Column('dataset_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('target_rule', sa.Text(), nullable=True),
         sa.Column('offer_config', postgresql.JSON(astext_type=sa.Text()), nullable=True),
         sa.Column('channels', postgresql.JSON(astext_type=sa.Text()), nullable=True),
@@ -51,6 +53,7 @@ def upgrade() -> None:
         sa.Column('roi', sa.Float(), nullable=True),
         sa.Column('risk_score', sa.Float(), nullable=True),
         sa.Column('cas_score', sa.Float(), nullable=True),
+        sa.Column('tenant_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=True),
         sa.Column('updated_at', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('id'),
@@ -60,8 +63,8 @@ def upgrade() -> None:
     # Create model_runs table
     op.create_table(
         'model_runs',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('dataset_id', sa.String(), nullable=True),
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('dataset_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('estimator', sa.String(), nullable=False),
         sa.Column('outcome', sa.String(), nullable=True),
         sa.Column('treatment', sa.String(), nullable=True),
@@ -76,6 +79,7 @@ def upgrade() -> None:
         sa.Column('cas_score', sa.Float(), nullable=True),
         sa.Column('status', sa.String(), nullable=True),
         sa.Column('error_message', sa.Text(), nullable=True),
+        sa.Column('tenant_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=True),
         sa.Column('completed_at', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('id'),
@@ -85,14 +89,14 @@ def upgrade() -> None:
     # Create diagnostics table
     op.create_table(
         'diagnostics',
-        sa.Column('id', sa.String(), nullable=False),
-        sa.Column('model_run_id', sa.String(), nullable=True),
+        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column('model_run_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('diagnostic_type', sa.String(), nullable=False),
         sa.Column('score', sa.Float(), nullable=True),
         sa.Column('passed', sa.Boolean(), nullable=True),
         sa.Column('warning', sa.Text(), nullable=True),
         sa.Column('data', postgresql.JSON(astext_type=sa.Text()), nullable=True),
-        sa.Column('visualization_id', sa.String(), nullable=True),
+        sa.Column('visualization_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=True),
         sa.PrimaryKeyConstraint('id'),
         sa.ForeignKeyConstraint(['model_run_id'], ['model_runs.id'])
