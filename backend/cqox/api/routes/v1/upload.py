@@ -35,25 +35,29 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/dataset")
 async def upload_dataset(
-    file: UploadFile = File(..., description="CSV file to upload"),
+    file: UploadFile = File(..., description="Data file to upload (CSV, JSON, Excel, Parquet)"),
     name: str = Form(..., description="Dataset name"),
     description: str = Form("", description="Dataset description"),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
     """
-    CSVファイルをアップロードしてデータセットを作成
-    
-    - ファイル形式: CSV (カンマ区切り)
+    データファイルをアップロードしてデータセットを作成
+
+    - 対応形式: CSV, JSON, Excel (.xlsx, .xls), Parquet
     - 最大サイズ: 100MB
     - エンコーディング: UTF-8推奨
+    - 処理フロー: アップロード → pandas読み込み → 前処理 → Parquet保存
     """
-    
+
     # ファイル形式チェック
-    if not file.filename.endswith('.csv'):
+    allowed_extensions = {'.csv', '.json', '.xlsx', '.xls', '.parquet', '.pq'}
+    file_ext = Path(file.filename).suffix.lower()
+
+    if file_ext not in allowed_extensions:
         raise HTTPException(
             status_code=400,
-            detail="CSVファイルのみアップロード可能です"
+            detail=f"サポートされていないファイル形式です。対応形式: CSV, JSON, Excel, Parquet"
         )
     
     try:
@@ -67,13 +71,22 @@ async def upload_dataset(
                 detail="ファイルサイズが100MBを超えています"
             )
         
-        # pandasで読み込んで検証
+        # ファイル形式に応じて読み込み
         try:
-            df = pd.read_csv(io.BytesIO(contents))
+            if file_ext == '.csv':
+                df = pd.read_csv(io.BytesIO(contents))
+            elif file_ext == '.json':
+                df = pd.read_json(io.BytesIO(contents))
+            elif file_ext in {'.xlsx', '.xls'}:
+                df = pd.read_excel(io.BytesIO(contents))
+            elif file_ext in {'.parquet', '.pq'}:
+                df = pd.read_parquet(io.BytesIO(contents))
+            else:
+                raise HTTPException(status_code=400, detail="未対応の形式です")
         except Exception as e:
             raise HTTPException(
                 status_code=400,
-                detail=f"CSVファイルの読み込みに失敗しました: {str(e)}"
+                detail=f"ファイルの読み込みに失敗しました ({file_ext}): {str(e)}"
             )
 
         # スキーマ情報を生成（データ型を文字列に変換）
@@ -82,11 +95,17 @@ async def upload_dataset(
         # データセットIDを生成（UUIDオブジェクトとして）
         dataset_id_uuid = uuid.uuid4()
         dataset_id_str = str(dataset_id_uuid)
-        
-        # ファイル保存
-        file_path = UPLOAD_DIR / f"{dataset_id_str}.csv"
-        with open(file_path, 'wb') as f:
+
+        # 元のファイルを一時保存
+        original_file_path = UPLOAD_DIR / f"{dataset_id_str}_original{file_ext}"
+        with open(original_file_path, 'wb') as f:
             f.write(contents)
+
+        # Parquet形式で保存（最適化された形式）
+        parquet_file_path = UPLOAD_DIR / f"{dataset_id_str}.parquet"
+        df.to_parquet(parquet_file_path, engine='pyarrow', compression='snappy', index=False)
+
+        file_path = parquet_file_path
         
         # データベースに登録
         tenant_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
@@ -161,12 +180,12 @@ async def list_datasets(
     try:
         result = await db.execute(
             text("""
-                SELECT id, name, description, row_count, column_count, created_at
+                SELECT id, name, description, row_count, column_count, created_at, updated_at
                 FROM datasets
                 ORDER BY created_at DESC
             """)
         )
-        
+
         datasets = []
         for row in result:
             datasets.append({
@@ -175,7 +194,8 @@ async def list_datasets(
                 "description": row[2],
                 "row_count": row[3],
                 "column_count": row[4],
-                "created_at": row[5].isoformat() if row[5] else None
+                "created_at": row[5].isoformat() if row[5] else None,
+                "updated_at": row[6].isoformat() if row[6] else None
             })
         
         return datasets
