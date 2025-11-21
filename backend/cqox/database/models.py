@@ -24,6 +24,7 @@ class Dataset(Base):
     file_path = Column(String)
     row_count = Column(Integer)
     column_count = Column(Integer)
+    columns = Column(JSON)  # List of column names
     schema = Column(JSON)  # Column name -> type mapping
     tenant_id = Column(PGUUID(as_uuid=True), default=DEFAULT_TENANT_ID)  # Multi-tenancy support
     created_at = Column(DateTime, default=datetime.utcnow)

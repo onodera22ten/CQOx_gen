@@ -26,6 +26,7 @@ def upgrade() -> None:
         sa.Column('file_path', sa.String(), nullable=True),
         sa.Column('row_count', sa.Integer(), nullable=True),
         sa.Column('column_count', sa.Integer(), nullable=True),
+        sa.Column('columns', postgresql.JSON(astext_type=sa.Text()), nullable=True),
         sa.Column('schema', postgresql.JSON(astext_type=sa.Text()), nullable=True),
         sa.Column('tenant_id', postgresql.UUID(as_uuid=True), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=True),
