@@ -216,7 +216,19 @@ async def get_dataset_columns(
                 raise FileNotFoundError(f"Dataset file not found in any expected location: {dataset_file_path}")
 
         # Read first few rows to get columns and infer types
-        df = pd.read_csv(file_path, nrows=100)
+        # Support multiple file formats
+        if file_path.endswith('.parquet'):
+            df = pd.read_parquet(file_path)
+            df = df.head(100)  # Limit to first 100 rows
+        elif file_path.endswith(('.csv', '.txt')):
+            df = pd.read_csv(file_path, nrows=100)
+        elif file_path.endswith('.json'):
+            df = pd.read_json(file_path, lines=True, nrows=100)
+        elif file_path.endswith(('.xls', '.xlsx')):
+            df = pd.read_excel(file_path, nrows=100)
+        else:
+            # Try CSV as default
+            df = pd.read_csv(file_path, nrows=100)
 
         columns = df.columns.tolist()
         schema = {col: str(dtype) for col, dtype in df.dtypes.items()}

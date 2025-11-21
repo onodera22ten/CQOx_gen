@@ -39,18 +39,38 @@ class DataLoader:
     @staticmethod
     def load_auto(
         file_path: Union[str, Path],
+        nrows: Optional[int] = None,
         **kwargs
     ) -> pd.DataFrame:
         """Auto-detect format and load"""
         file_path = Path(file_path)
         suffix = file_path.suffix.lower()
 
-        if suffix == '.csv':
+        if suffix in ['.csv', '.txt']:
+            if nrows:
+                kwargs['nrows'] = nrows
             return DataLoader.load_csv(file_path, **kwargs)
         elif suffix in ['.parquet', '.pq']:
-            return DataLoader.load_parquet(file_path, **kwargs)
+            df = DataLoader.load_parquet(file_path, **kwargs)
+            if nrows:
+                df = df.head(nrows)
+            return df
+        elif suffix == '.json':
+            df = pd.read_json(file_path, **kwargs)
+            if nrows:
+                df = df.head(nrows)
+            return df
+        elif suffix in ['.xls', '.xlsx']:
+            if nrows:
+                kwargs['nrows'] = nrows
+            df = pd.read_excel(file_path, **kwargs)
+            return df
         else:
-            raise ValueError(f"Unsupported file format: {suffix}")
+            # Try CSV as default
+            logger.warning(f"Unknown file format {suffix}, attempting CSV")
+            if nrows:
+                kwargs['nrows'] = nrows
+            return DataLoader.load_csv(file_path, **kwargs)
 
     @staticmethod
     def save_parquet(
