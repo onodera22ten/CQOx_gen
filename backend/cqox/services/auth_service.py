@@ -86,8 +86,17 @@ class AuthService:
         return db.query(User).filter(User.email == email).first()
 
     @staticmethod
-    def get_user_by_id(db: Session, user_id: int) -> Optional[User]:
-        """Get user by ID"""
+    def get_user_by_id(db: Session, user_id) -> Optional[User]:
+        """Get user by ID (supports both int and UUID string)"""
+        import uuid
+
+        # Convert string UUID to UUID object if needed
+        if isinstance(user_id, str):
+            try:
+                user_id = uuid.UUID(user_id)
+            except ValueError:
+                return None
+
         return db.query(User).filter(User.id == user_id).first()
 
     @staticmethod

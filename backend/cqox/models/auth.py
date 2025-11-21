@@ -64,8 +64,9 @@ class LoginResponse(BaseModel):
 class TokenPayload(BaseModel):
     """JWT token payload"""
     sub: str = Field(..., description="Subject (user email)")
-    user_id: int = Field(..., description="User ID")
+    user_id: Union[int, str] = Field(..., description="User ID (int or UUID string)")
     role: str = Field(..., description="User role")
+    tenant_id: Optional[Union[str, UUID]] = Field(None, description="Tenant ID")
     exp: int = Field(..., description="Expiration timestamp")
     iat: int = Field(..., description="Issued at timestamp")
 
