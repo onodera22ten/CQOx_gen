@@ -5,7 +5,8 @@ Authentication Models - Pydantic schemas for API requests/responses
 データベースモデルは別途 db/models.py で定義します。
 """
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Union
+from uuid import UUID
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 
@@ -31,7 +32,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     """User response (excludes password)"""
-    id: int
+    id: Union[int, UUID]
     role: str
     is_active: bool
     created_at: datetime

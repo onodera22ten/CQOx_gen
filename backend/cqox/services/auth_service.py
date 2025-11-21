@@ -2,17 +2,15 @@
 Authentication Service - Business logic for user authentication
 """
 import os
+import hashlib
+import bcrypt
 from datetime import datetime, timedelta
 from typing import Optional
-from passlib.context import CryptContext
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
 from cqox.db.models import User
 from cqox.models.auth import UserCreate, TokenPayload
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # JWT settings
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
@@ -27,12 +25,22 @@ class AuthService:
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """Verify a password against its hash"""
-        return pwd_context.verify(plain_password, hashed_password)
+        # Use SHA256 for passwords > 72 bytes
+        password_bytes = plain_password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password_bytes = hashlib.sha256(password_bytes).digest()
+        return bcrypt.checkpw(password_bytes, hashed_password.encode('utf-8'))
 
     @staticmethod
     def get_password_hash(password: str) -> str:
         """Hash a password"""
-        return pwd_context.hash(password)
+        # Use SHA256 for passwords > 72 bytes
+        password_bytes = password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password_bytes = hashlib.sha256(password_bytes).digest()
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(password_bytes, salt)
+        return hashed.decode('utf-8')
 
     @staticmethod
     def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -88,7 +96,7 @@ class AuthService:
         hashed_password = AuthService.get_password_hash(user.password)
         db_user = User(
             email=user.email,
-            password_hash=hashed_password,
+            hashed_password=hashed_password,
             role=user.role,
             is_active=True
         )
@@ -103,7 +111,7 @@ class AuthService:
         user = AuthService.get_user_by_email(db, email)
         if not user:
             return None
-        if not AuthService.verify_password(password, user.password_hash):
+        if not AuthService.verify_password(password, user.hashed_password):
             return None
         if not user.is_active:
             return None

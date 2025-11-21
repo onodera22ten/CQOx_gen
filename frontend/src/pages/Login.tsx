@@ -234,7 +234,7 @@ export const Login: React.FC = () => {
             JWT Authentication • OAuth2 • Rate Limiting • Encryption • GDPR Compliant
           </p>
           <p className="text-xs mt-4" style={{ color: 'var(--text-muted)' }}>
-            Default admin: <strong style={{ color: 'var(--accent-blue)' }}>admin@cqox.local / admin_password_change_me</strong><br />
+            Default admin: <strong style={{ color: 'var(--accent-blue)' }}>admin@cqox.com / admin_password_change_me</strong><br />
             (Change credentials via ADMIN_EMAIL and ADMIN_PASSWORD env vars)
           </p>
         </div>

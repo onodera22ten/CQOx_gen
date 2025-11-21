@@ -49,8 +49,9 @@ async def login(
     access_token = AuthService.create_access_token(
         data={
             "sub": user.email,
-            "user_id": user.id,
-            "role": user.role
+            "user_id": str(user.id),
+            "role": user.role,
+            "tenant_id": str(user.tenant_id) if hasattr(user, 'tenant_id') and user.tenant_id else None
         }
     )
 
@@ -58,8 +59,9 @@ async def login(
     refresh_token = AuthService.create_refresh_token(
         data={
             "sub": user.email,
-            "user_id": user.id,
-            "role": user.role
+            "user_id": str(user.id),
+            "role": user.role,
+            "tenant_id": str(user.tenant_id) if hasattr(user, 'tenant_id') and user.tenant_id else None
         }
     )
 

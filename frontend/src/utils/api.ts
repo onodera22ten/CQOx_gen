@@ -11,7 +11,7 @@
 
 import { mockPolicies, mockDatasets, delay } from '../api/mockBackend';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = import.meta.env.VITE_API_URL || '';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'; // モックモードを有効化
 
 interface RequestOptions extends RequestInit {
