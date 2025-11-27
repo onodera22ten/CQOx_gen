@@ -56,6 +56,9 @@ data/exports/*
 *.db
 *.sqlite
 
+# PDF files (keep local, don't push to GitHub)
+*.pdf
+
 # Models
 models/
 checkpoints/

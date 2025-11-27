@@ -6,6 +6,9 @@
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
 [![TypeScript 5.0+](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 
+**📖 Documentation**
+[🇺🇸 English (Full)](README_en.md) | [🇯🇵 日本語 (Full)](README_jp.md)
+
 ---
 
 ## 🚀 Quick Start (5 minutes)
