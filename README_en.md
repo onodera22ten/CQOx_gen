@@ -15,6 +15,56 @@ controls that match what top tech and consulting firms build in-house.
 
 ---
 
+## 📊 System Overview
+
+CQOx is a comprehensive causal marketing decision platform that transforms raw event data into actionable insights through a sophisticated pipeline of causal inference, experimentation, portfolio optimization, and governance controls.
+
+**High-Level Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         Frontend Layer (React + Vite)                │
+│  Decision Console │ Portfolio │ Digital Twin │ Experiment Studio    │
+│  Governance Center │ Policy Lab │ Growth Studio │ Export Gate       │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────────────┐
+│                    API Gateway (FastAPI - Port 8000)                │
+│              REST API (v1/v2) + WebSocket + SSE Endpoints           │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────────────┐
+│                      Causal Engine (Python)                         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐             │
+│  │  Estimators  │  │  Diagnostics │  │  Simulations │             │
+│  │  DR, IPW,    │  │  Balance,    │  │  Digital     │             │
+│  │  DiD, IV,    │  │  Overlap,    │  │  Twin,       │             │
+│  │  CF, SCM, RD │  │  Sensitivity │  │  Scenarios   │             │
+│  └──────────────┘  └──────────────┘  └──────────────┘             │
+└─────────────────────┬───────────────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────────────┐
+│              Data Layer (PostgreSQL with RLS)                       │
+│  Datasets │ Policies │ Experiments │ Governance Logs │ Audit Trail │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                  Monitoring & Observability                         │
+│              Prometheus + Grafana + Application Logs                │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Components:**
+
+- **Frontend (Port 3004)**: React SPA with TanStack Query for state management
+- **API Gateway (Port 8000)**: FastAPI with JWT authentication and RBAC
+- **Causal Engine**: Python service hosting all statistical estimators and diagnostics
+- **Reverse Proxy (Nginx)**: Routes traffic, handles SSL, enables WebSocket/SSE
+- **Database**: PostgreSQL with Row-Level Security (RLS) for multi-tenancy
+- **Monitoring**: Prometheus (Port 9090) + Grafana (Port 3000)
+
+---
+
 ## 1. Why CQOx exists
 
 Most marketing analytics tools stop at:
@@ -177,9 +227,122 @@ CQOx deliberately does **not**:
 - deploy campaigns without **explicit human or rule-based approval**,  
 - hide the effect estimation logic behind an “AI” label.
 
-This separation keeps the system **auditable, safe, and compliant**,  
+This separation keeps the system **auditable, safe, and compliant**,
 while still benefiting from AI where it adds value: communication and workflow.
 
+### 3.5 What Makes CQOx Different: Comparative Analysis
+
+The table below compares CQOx with alternative approaches to marketing decision-making:
+
+| **Dimension** | **Traditional BI Dashboards** | **Generic AI/ML Tools** | **Uplift SaaS** | **Consulting Firms** | **CQOx** |
+|---------------|------------------------------|------------------------|-----------------|---------------------|----------|
+| **Primary Focus** | Descriptive analytics (what happened) | Predictive models (who will convert) | Uplift scoring | One-time strategic studies | Causal decision-making (what to do next) |
+| **Metric** | Revenue, CVR, CTR | Propensity scores, AUC | Uplift scores | Custom KPIs | Incremental profit (Δ¥), CAS, CVaR |
+| **Causality** | None – correlation only | Indirect (prediction ≠ causation) | Yes – uplift modeling | Yes – but ad-hoc | Yes – multiple estimators with diagnostics |
+| **Estimators** | N/A | ML classifiers (XGBoost, NN) | DR, S-Learner, T-Learner | Varies by project | DR, IPW, DiD, IV, CF, SCM, RD |
+| **Portfolio Optimization** | No | No | Limited | Manual / spreadsheet | Automated Pareto frontier analysis |
+| **Digital Twin** | No | No | No | Rarely | Yes – persona-level simulation |
+| **Experimentation Platform** | No | No | Limited | No | Full A/B + multi-arm bandit orchestration |
+| **Governance & Fairness** | No | No | No | Manual checks | Automated fairness, quality gates, audit trails |
+| **Risk Management** | No | No | Limited | Qualitative | Quantitative (CVaR, portfolio risk) |
+| **Transparency** | High (SQL queries) | Low (black-box models) | Medium | High (slides) | High (visible estimators + diagnostics) |
+| **Real-Time Updates** | Yes | Depends | Limited | No | Yes – continuous console |
+| **Multi-Tenancy** | Depends | No | Depends | N/A | Yes – RLS + RBAC |
+| **Deployment Model** | Cloud SaaS | Cloud SaaS | Cloud SaaS | Consulting project | Self-hosted or cloud (Docker) |
+| **Cost Structure** | Subscription | Subscription | Subscription | Per-project fees | One-time + infrastructure |
+| **Time to Value** | Days | Weeks | Weeks | Months | Days (after data prep) |
+| **Ideal For** | Tracking performance | Lead scoring, churn prediction | Campaign optimization | Strategic initiatives | Continuous causal marketing decisions |
+
+**Key Takeaways:**
+
+- **BI Dashboards** tell you what happened, but not why or what to do.
+- **Generic AI/ML** optimizes predictions, but ignores causality and business constraints.
+- **Uplift SaaS** focuses on scoring, but lacks portfolio, experimentation, and governance.
+- **Consulting Firms** deliver deep insights once, but not a continuous operational system.
+- **CQOx** combines causality, portfolio optimization, experimentation, and governance into a single, auditable, self-service platform.
+
+---
+
+## 🔄 Causal Inference Workflow
+
+CQOx follows a rigorous workflow from raw data to actionable decisions:
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│ STEP 1: DATA INGESTION & VALIDATION                                 │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ • Upload CSV or connect to data warehouse                           │
+│ • Schema validation & data quality checks                           │
+│ • Missing value detection & outlier flagging                        │
+└────────────────────────────┬─────────────────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ STEP 2: CAUSAL DESIGN SPECIFICATION                                 │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ • Auto-detect columns: treatment, outcome, user_id, time, features  │
+│ • User confirms/adjusts causal design                               │
+│ • Select estimators: DR, IPW, DiD, IV, CF, SCM, RD                  │
+│ • Define segments, channels, cost structure                         │
+└────────────────────────────┬─────────────────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ STEP 3: CAUSAL MODEL TRAINING                                       │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ • Train multiple estimators in parallel                             │
+│ • Propensity modeling (for IPW, DR)                                 │
+│ • Outcome modeling (for DR, T-Learner)                              │
+│ • CATE estimation per user/segment                                  │
+└────────────────────────────┬─────────────────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ STEP 4: DIAGNOSTICS & VALIDATION                                    │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ • Overlap diagnostics (propensity distribution)                     │
+│ • Covariate balance checks (SMD, Love plots)                        │
+│ • Sensitivity analysis (Rosenbaum bounds)                           │
+│ • Refutation tests (placebo, random cause)                          │
+│ • Compute Causal Assurance Score (CAS)                              │
+└────────────────────────────┬─────────────────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ STEP 5: POLICY GENERATION                                           │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ • Aggregate user-level CATE to policy-level Δ¥                      │
+│ • Compute policy-level metrics: ROI, risk, CAS                      │
+│ • Generate policy recommendations (Go/Canary/Hold)                  │
+└────────────────────────────┬─────────────────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ STEP 6: PORTFOLIO OPTIMIZATION                                      │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ • Multi-objective optimization: profit vs risk vs CAS               │
+│ • Pareto frontier analysis                                          │
+│ • Budget constraint enforcement                                     │
+│ • Recommend optimal policy portfolio                                │
+└────────────────────────────┬─────────────────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ STEP 7: GOVERNANCE & COMPLIANCE CHECKS                              │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ • Fairness audit across sensitive attributes                        │
+│ • Data quality verification                                         │
+│ • Frequency cap compliance                                          │
+│ • Quality gate enforcement                                          │
+│ • Log violations & generate audit trail                             │
+└────────────────────────────┬─────────────────────────────────────────┘
+                             ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ STEP 8: DECISION EXPORT & ACTIVATION                                │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ • Export approved policies to CSV/JSON                              │
+│ • API integration with ESP/CDP/marketing automation                 │
+│ • Schedule campaigns with target segments                           │
+│ • Monitor outcomes & update models                                  │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+**Feedback Loop:**
+Once campaigns are executed, outcome data flows back into the system, enabling continuous model refinement and policy updates.
 
 ---
 
@@ -552,21 +715,652 @@ This section is intended as a **spec sheet** for designers & engineers.
 
 ---
 
-## 6. Architecture (high level)
+## 6. System Architecture
 
-CQOx is designed as a small set of services:
+CQOx follows a modern microservices architecture with clear separation of concerns, enabling scalability, maintainability, and security.
 
-- **Frontend**: React + Vite + TanStack Query SPA (port 3004).  
-- **API Gateway**: FastAPI app for `/api/v1` & `/api/v2` endpoints (port 8000).  
-- **Causal Engine**: Python service hosting estimators, diagnostics, simulations.  
-- **Reverse Proxy**: Nginx in front of frontend + API, and as SSE/WebSocket gateway.  
-- **Monitoring**: Prometheus + Grafana for metrics / dashboards.  
+### 6.1 Architectural Layers
 
-All components are Dockerized so you can run the whole stack with a single command.
+```
+┌───────────────────────────────────────────────────────────────────────┐
+│                        CLIENT LAYER                                   │
+│  Web Browser (React SPA) │ Mobile App │ API Clients                  │
+└─────────────────────────────┬─────────────────────────────────────────┘
+                              │ HTTPS
+                              ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│                    REVERSE PROXY (Nginx)                              │
+│  • SSL Termination                                                    │
+│  • Load Balancing                                                     │
+│  • Rate Limiting                                                      │
+│  • WebSocket/SSE Gateway                                              │
+└──────────────┬────────────────────────┬───────────────────────────────┘
+               │                        │
+               ▼                        ▼
+┌──────────────────────────┐  ┌────────────────────────────────────────┐
+│   FRONTEND (Port 3004)   │  │  API GATEWAY (FastAPI - Port 8000)    │
+│  • React 18 + Vite       │  │  • JWT Authentication                 │
+│  • TanStack Query        │  │  • OAuth2 Integration                 │
+│  • React Router          │  │  • RBAC Middleware                    │
+│  • Recharts/D3           │  │  • Request Validation (Pydantic)      │
+│  • Tailwind CSS          │  │  • Rate Limiting                      │
+└──────────────────────────┘  └─────────────┬──────────────────────────┘
+                                            │
+                                            ▼
+                              ┌──────────────────────────────────────────┐
+                              │    BUSINESS LOGIC LAYER                  │
+                              │  ┌────────────────────────────────────┐  │
+                              │  │  CAUSAL ENGINE (Python)            │  │
+                              │  │  • Estimators (DR, IPW, DiD, etc.) │  │
+                              │  │  • Diagnostics Engine              │  │
+                              │  │  • Simulation Engine               │  │
+                              │  │  • Portfolio Optimizer             │  │
+                              │  └────────────────────────────────────┘  │
+                              │  ┌────────────────────────────────────┐  │
+                              │  │  GOVERNANCE ENGINE                 │  │
+                              │  │  • Fairness Auditor                │  │
+                              │  │  • Quality Gate Enforcer           │  │
+                              │  │  • Compliance Monitor              │  │
+                              │  └────────────────────────────────────┘  │
+                              │  ┌────────────────────────────────────┐  │
+                              │  │  EXPERIMENT ENGINE                 │  │
+                              │  │  • A/B Test Manager                │  │
+                              │  │  • Multi-Arm Bandit Allocator      │  │
+                              │  │  • Outcome Tracker                 │  │
+                              │  └────────────────────────────────────┘  │
+                              └─────────────┬────────────────────────────┘
+                                            │
+                                            ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│                     DATA PERSISTENCE LAYER                            │
+│  ┌──────────────────────────────────────────────────────────────┐    │
+│  │  PostgreSQL (Primary Database)                               │    │
+│  │  • User & Role Management (with RLS)                         │    │
+│  │  • Dataset Storage & Metadata                                │    │
+│  │  • Policy & Analysis Results                                 │    │
+│  │  • Experiment State & Allocations                            │    │
+│  │  • Governance Logs & Audit Trail                             │    │
+│  └──────────────────────────────────────────────────────────────┘    │
+│  ┌──────────────────────────────────────────────────────────────┐    │
+│  │  Object Storage (Optional - S3/MinIO)                        │    │
+│  │  • Large CSV Files                                           │    │
+│  │  • Model Artifacts                                           │    │
+│  │  • Export Archives                                           │    │
+│  └──────────────────────────────────────────────────────────────┘    │
+└───────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────────────────┐
+│                  MONITORING & OBSERVABILITY                           │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │  Prometheus  │  │   Grafana    │  │     Logs     │               │
+│  │  (Port 9090) │  │  (Port 3000) │  │  (Stdout/    │               │
+│  │  • Metrics   │  │  • Dashboards│  │   Files)     │               │
+│  │  • Alerts    │  │  • Alerting  │  │              │               │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
+└───────────────────────────────────────────────────────────────────────┘
+```
+
+### 6.2 Key Architectural Patterns
+
+**1. Multi-Tenancy with Row-Level Security (RLS)**
+- PostgreSQL RLS policies ensure data isolation between tenants
+- Each API request authenticated with JWT containing tenant_id
+- Database automatically filters queries based on authenticated tenant
+
+**2. Role-Based Access Control (RBAC)**
+- Three primary roles: `admin`, `analyst`, `viewer`
+- Permissions enforced at API gateway and database level
+- Admin: full access; Analyst: read + analysis + export; Viewer: read-only
+
+**3. Event-Driven Architecture**
+- Long-running tasks (model training, simulations) executed asynchronously
+- WebSocket/SSE for real-time progress updates to frontend
+- Job queue (optional: Redis/Celery) for background processing
+
+**4. Stateless API Design**
+- All state stored in database or client (JWT)
+- Enables horizontal scaling of API gateway and compute nodes
+- Session management via JWT tokens with configurable expiration
+
+**5. Defense in Depth Security**
+- SSL/TLS encryption in transit (Nginx)
+- Data encryption at rest (PostgreSQL encryption)
+- JWT signature verification
+- SQL injection prevention (parameterized queries)
+- XSS prevention (React escaping + CSP headers)
+- CSRF tokens for state-changing operations
+
+### 6.3 Technology Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | React 18, Vite, TypeScript | Modern SPA framework with fast build times |
+| **State Management** | TanStack Query (React Query) | Server state synchronization & caching |
+| **UI Components** | Tailwind CSS, Radix UI | Responsive, accessible component library |
+| **Data Visualization** | Recharts, D3.js | Charts, graphs, and interactive visualizations |
+| **API Gateway** | FastAPI (Python 3.11+) | High-performance async API framework |
+| **Authentication** | JWT + OAuth2 | Secure token-based authentication |
+| **Causal Inference** | EconML, CausalML, DoWhy | Industry-standard causal estimation libraries |
+| **ML/Stats** | scikit-learn, scipy, statsmodels | Statistical computing and ML utilities |
+| **Database** | PostgreSQL 15+ with RLS | ACID-compliant relational database |
+| **Reverse Proxy** | Nginx | Load balancing, SSL termination, caching |
+| **Monitoring** | Prometheus, Grafana | Metrics collection and visualization |
+| **Containerization** | Docker, Docker Compose | Reproducible deployment |
+| **Orchestration (Prod)** | Kubernetes (optional) | Container orchestration for scale |
+
+### 6.4 Data Flow Example: Running Causal Analysis
+
+```
+User Action → Frontend → API Gateway → Causal Engine → Database
+─────────────────────────────────────────────────────────────────
+
+1. User clicks "Run Analysis" on Causal Design page
+   └─> POST /api/v1/analysis/run { dataset_id, design_id }
+
+2. API Gateway validates JWT, checks RBAC, validates payload
+   └─> If authorized → forward to Causal Engine
+
+3. Causal Engine:
+   a. Fetch dataset from database
+   b. Load causal design (treatment, outcome, covariates)
+   c. Train estimators (DR, IPW, DiD, etc.) in parallel
+   d. Run diagnostics (overlap, balance, sensitivity)
+   e. Compute Causal Assurance Score (CAS)
+   f. Store results in database
+   g. Emit progress events via WebSocket
+
+4. API Gateway returns analysis_id
+   └─> Frontend polls GET /api/v1/analysis/{id}/status
+   └─> Or receives real-time updates via WebSocket
+
+5. User views results in Diagnostics & Audit page
+```
 
 ---
 
-## 7. Quickstart (example)
+## 7. API Usage Examples
+
+CQOx exposes a comprehensive REST API for all core operations. Below are examples using `curl` and Python.
+
+### 7.1 Authentication
+
+**Obtain JWT Token:**
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@cqox.com",
+    "password": "your-password"
+  }'
+```
+
+**Response:**
+```json
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "token_type": "bearer",
+  "expires_in": 3600
+}
+```
+
+**Python Example:**
+```python
+import requests
+
+BASE_URL = "http://localhost:8000/api/v1"
+
+# Login
+response = requests.post(f"{BASE_URL}/auth/login", json={
+    "email": "admin@cqox.com",
+    "password": "your-password"
+})
+token = response.json()["access_token"]
+
+# Use token in subsequent requests
+headers = {"Authorization": f"Bearer {token}"}
+```
+
+---
+
+### 7.2 Upload Dataset
+
+**Endpoint:** `POST /api/v1/datasets`
+
+```bash
+curl -X POST http://localhost:8000/api/v1/datasets \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "file=@campaign_data.csv" \
+  -F "name=Q4 Email Campaign" \
+  -F "description=Email campaign with treatment assignment"
+```
+
+**Python Example:**
+```python
+with open("campaign_data.csv", "rb") as f:
+    files = {"file": f}
+    data = {
+        "name": "Q4 Email Campaign",
+        "description": "Email campaign with treatment assignment"
+    }
+    response = requests.post(
+        f"{BASE_URL}/datasets",
+        headers=headers,
+        files=files,
+        data=data
+    )
+    dataset_id = response.json()["dataset_id"]
+    print(f"Dataset uploaded: {dataset_id}")
+```
+
+---
+
+### 7.3 Configure Causal Design
+
+**Endpoint:** `POST /api/v1/causal-design`
+
+```bash
+curl -X POST http://localhost:8000/api/v1/causal-design \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataset_id": "ds_abc123",
+    "treatment_column": "treatment",
+    "outcome_column": "revenue",
+    "user_id_column": "customer_id",
+    "time_column": "timestamp",
+    "cost_column": "campaign_cost",
+    "features": ["age", "gender", "tenure", "rfm_score"],
+    "estimators": ["DR", "IPW", "DiD"],
+    "channel": "Email",
+    "segment": "High-Value Customers"
+  }'
+```
+
+**Python Example:**
+```python
+design_config = {
+    "dataset_id": dataset_id,
+    "treatment_column": "treatment",
+    "outcome_column": "revenue",
+    "user_id_column": "customer_id",
+    "time_column": "timestamp",
+    "cost_column": "campaign_cost",
+    "features": ["age", "gender", "tenure", "rfm_score"],
+    "estimators": ["DR", "IPW", "DiD"],
+    "channel": "Email",
+    "segment": "High-Value Customers"
+}
+
+response = requests.post(
+    f"{BASE_URL}/causal-design",
+    headers=headers,
+    json=design_config
+)
+design_id = response.json()["design_id"]
+```
+
+---
+
+### 7.4 Run Causal Analysis
+
+**Endpoint:** `POST /api/v1/analysis/run`
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analysis/run \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dataset_id": "ds_abc123",
+    "design_id": "cd_xyz789"
+  }'
+```
+
+**Python Example:**
+```python
+response = requests.post(
+    f"{BASE_URL}/analysis/run",
+    headers=headers,
+    json={
+        "dataset_id": dataset_id,
+        "design_id": design_id
+    }
+)
+analysis_id = response.json()["analysis_id"]
+status_url = response.json()["status_url"]
+
+# Poll for completion
+import time
+while True:
+    status = requests.get(f"{BASE_URL}/analysis/{analysis_id}/status", headers=headers)
+    state = status.json()["status"]
+    print(f"Analysis status: {state}")
+    if state in ["completed", "failed"]:
+        break
+    time.sleep(2)
+```
+
+---
+
+### 7.5 Get Decision Console Summary
+
+**Endpoint:** `GET /api/v1/console/summary`
+
+```bash
+curl -X GET "http://localhost:8000/api/v1/console/summary?period=last_28d" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "total_delta_yen": 1245000,
+  "avg_delta_yen_per_policy": 62250,
+  "mean_cas": 0.73,
+  "cvar_worst_10": -15000,
+  "trend": [
+    {"week": "2025-W01", "delta_yen": 245000, "cas": 0.71},
+    {"week": "2025-W02", "delta_yen": 312000, "cas": 0.75}
+  ],
+  "segments": [
+    {"name": "High-Value", "size": 5000, "delta_yen": 500000, "cas": 0.80},
+    {"name": "Medium-Value", "size": 12000, "delta_yen": 450000, "cas": 0.68}
+  ],
+  "channels": [
+    {"name": "Email", "delta_yen": 600000, "roi": 4.5},
+    {"name": "Push", "delta_yen": 400000, "roi": 6.2}
+  ]
+}
+```
+
+**Python Example:**
+```python
+response = requests.get(
+    f"{BASE_URL}/console/summary",
+    headers=headers,
+    params={"period": "last_28d"}
+)
+summary = response.json()
+print(f"Total Δ¥: ¥{summary['total_delta_yen']:,}")
+print(f"Mean CAS: {summary['mean_cas']:.2f}")
+```
+
+---
+
+### 7.6 Get Portfolio Recommendations
+
+**Endpoint:** `GET /api/v1/portfolio`
+
+```bash
+curl -X GET "http://localhost:8000/api/v1/portfolio?budget=500000&max_risk=0.7" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "recommended_portfolio": {
+    "expected_delta_yen": 665883,
+    "portfolio_cas": 0.15,
+    "portfolio_risk": 0.59,
+    "portfolio_roi": 5.0,
+    "num_policies": 5,
+    "total_budget": 133177
+  },
+  "policies": [
+    {
+      "policy_id": "pol_001",
+      "policy_name": "Email Campaign - High RFM",
+      "delta_yen": 250000,
+      "risk": 0.45,
+      "cas": 0.82,
+      "roi": 6.2,
+      "recommendation": "include"
+    }
+  ],
+  "pareto_frontier": [
+    {"risk": 0.2, "profit": 150000},
+    {"risk": 0.5, "profit": 500000}
+  ]
+}
+```
+
+---
+
+### 7.7 Create Online Experiment
+
+**Endpoint:** `POST /api/v2/experiments`
+
+```bash
+curl -X POST http://localhost:8000/api/v2/experiments \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Email Subject Line Test",
+    "metric": "open_rate",
+    "arms": [
+      {"arm_id": "control", "name": "Original Subject"},
+      {"arm_id": "variant_a", "name": "Personalized Subject"},
+      {"arm_id": "variant_b", "name": "Emoji Subject"}
+    ],
+    "allocation_strategy": "thompson_sampling"
+  }'
+```
+
+**Python Example:**
+```python
+experiment_config = {
+    "name": "Email Subject Line Test",
+    "metric": "open_rate",
+    "arms": [
+        {"arm_id": "control", "name": "Original Subject"},
+        {"arm_id": "variant_a", "name": "Personalized Subject"},
+        {"arm_id": "variant_b", "name": "Emoji Subject"}
+    ],
+    "allocation_strategy": "thompson_sampling"
+}
+
+response = requests.post(
+    f"{BASE_URL.replace('v1', 'v2')}/experiments",
+    headers=headers,
+    json=experiment_config
+)
+experiment_id = response.json()["experiment_id"]
+```
+
+---
+
+### 7.8 Check Fairness Compliance
+
+**Endpoint:** `POST /api/v2/governance/fairness`
+
+```bash
+curl -X POST http://localhost:8000/api/v2/governance/fairness \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "policy_id": "pol_001",
+    "fairness_threshold": 5000,
+    "sensitive_attributes": {
+      "gender": ["male", "female"],
+      "age_group": ["18-24", "25-34", "35-44", "45+"]
+    },
+    "uplift_data": [
+      {"user_id": "u1", "delta_yen": 120, "gender": "male", "age_group": "25-34"},
+      {"user_id": "u2", "delta_yen": 95, "gender": "female", "age_group": "25-34"}
+    ]
+  }'
+```
+
+**Response:**
+```json
+{
+  "fairness_check": "PASSED",
+  "disparities": {
+    "gender": {
+      "male": {"mean_delta_yen": 115, "count": 5000},
+      "female": {"mean_delta_yen": 110, "count": 4800},
+      "max_disparity": 5,
+      "threshold": 5000
+    }
+  },
+  "violations": [],
+  "audit_log_id": "audit_12345"
+}
+```
+
+---
+
+### 7.9 WebSocket: Real-Time Analysis Progress
+
+**JavaScript Example:**
+```javascript
+const ws = new WebSocket('ws://localhost:8000/ws/analysis/analysis_abc123');
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log(`Progress: ${data.progress}% - ${data.stage}`);
+
+  if (data.status === 'completed') {
+    console.log('Analysis complete!', data.results);
+  }
+};
+```
+
+---
+
+## 8. Security & Compliance
+
+CQOx implements enterprise-grade security and compliance features to ensure data protection, access control, and regulatory adherence.
+
+### 8.1 Authentication & Authorization
+
+**JWT + OAuth2 Authentication**
+- JSON Web Tokens (JWT) for stateless authentication
+- OAuth2 integration for enterprise SSO (Google, Azure AD, Okta)
+- Configurable token expiration (default: 1 hour access, 7 day refresh)
+- Secure password hashing (bcrypt with salt)
+
+**Role-Based Access Control (RBAC)**
+
+| Role | Permissions |
+|------|-------------|
+| **Admin** | Full system access: manage users, datasets, policies, configurations, exports |
+| **Analyst** | Read + analyze data, create policies, run experiments, export results |
+| **Viewer** | Read-only access to dashboards, reports, and visualizations |
+
+RBAC enforcement at:
+- API Gateway (FastAPI dependencies)
+- Database (PostgreSQL RLS policies)
+- Frontend (UI component visibility)
+
+### 8.2 Data Security
+
+**Encryption**
+- **In Transit**: TLS 1.3 for all client-server communication
+- **At Rest**: PostgreSQL encryption for sensitive columns (PII, financial data)
+- **API Tokens**: Encrypted storage, hashed comparison
+
+**Multi-Tenancy & Data Isolation**
+- Row-Level Security (RLS) in PostgreSQL ensures tenant data isolation
+- Each API request authenticated with tenant_id in JWT
+- Database automatically filters all queries by authenticated tenant
+- Cross-tenant data leakage prevention via database policies
+
+**Data Retention & Deletion**
+- Configurable data retention policies
+- Soft delete with audit trail
+- GDPR/CCPA-compliant data deletion workflows
+- Automatic PII redaction in logs
+
+### 8.3 Governance & Compliance
+
+**Audit Trails**
+- All critical operations logged with:
+  - User ID, role, timestamp
+  - Action type (create, read, update, delete, export)
+  - Resource ID (dataset, policy, experiment)
+  - IP address, user agent
+- Immutable audit logs (append-only)
+- Audit log retention: 7 years (configurable)
+
+**Fairness & Bias Detection**
+- Automated fairness checks across sensitive attributes (gender, age, ethnicity, etc.)
+- Statistical parity, equal opportunity, equalized odds metrics
+- Configurable fairness thresholds per policy
+- Violation alerts with automatic hold recommendations
+
+**Frequency Caps & Exposure Limits**
+- Per-user contact frequency limits (e.g., max 3 emails/week)
+- Per-campaign exposure caps
+- Channel-specific limits (Email, Push, SMS, etc.)
+- Automatic compliance violations flagged in Governance Center
+
+**Quality Gates**
+- Minimum sample size requirements
+- CAS threshold enforcement (e.g., block policies with CAS < 0.4)
+- Data quality checks (missing values, outliers, data drift)
+- Configurable severity levels: `info`, `warning`, `critical`
+- Auto-block on critical violations
+
+**Regulatory Compliance**
+- **GDPR**: Right to access, right to deletion, data portability, consent management
+- **CCPA**: Data disclosure, opt-out mechanisms, non-discrimination
+- **SOC 2**: Security controls, access logs, encryption
+- **HIPAA** (optional): PHI encryption, access controls (for healthcare clients)
+
+### 8.4 Violation Logging & Alerts
+
+**Violation Log Structure:**
+```json
+{
+  "violation_id": "viol_12345",
+  "type": "fairness",
+  "severity": "critical",
+  "policy_id": "pol_001",
+  "details": "Gender disparity exceeds threshold: Δ¥ difference = ¥8,500 (threshold: ¥5,000)",
+  "timestamp": "2025-11-27T10:30:00Z",
+  "action_taken": "policy_blocked",
+  "reviewer": null
+}
+```
+
+**Alert Channels:**
+- Email notifications to admins/analysts
+- Slack/Teams integration (webhook)
+- In-app notifications (bell icon)
+- Dashboard alerts (Governance Center)
+
+### 8.5 Security Best Practices
+
+**Deployment Recommendations:**
+1. **Production Environment**:
+   - Use HTTPS only (Nginx with Let's Encrypt or corporate certs)
+   - Enable firewall rules (allow only ports 80/443)
+   - Isolate database on private network
+   - Use secrets management (Vault, AWS Secrets Manager)
+
+2. **Database Security**:
+   - Strong passwords (16+ chars, rotated quarterly)
+   - Disable public access (bind to localhost or private IP)
+   - Enable PostgreSQL SSL connections
+   - Regular backups (daily full + hourly incremental)
+
+3. **API Security**:
+   - Rate limiting (100 req/min per user, 1000 req/min per tenant)
+   - CORS whitelist (restrict allowed origins)
+   - Input validation (Pydantic schemas)
+   - SQL injection prevention (parameterized queries only)
+
+4. **Monitoring & Incident Response**:
+   - Real-time alerts for failed login attempts (>5 in 10 min)
+   - Anomaly detection (unusual data access patterns)
+   - Incident response playbook
+   - Regular security audits & penetration testing
+
+---
+
+## 9. Quickstart (example)
 
 > Adjust repository name / ports as needed for your environment.
 
