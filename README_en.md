@@ -176,288 +176,236 @@ flowchart TD
 
 ### 4.1 Datasets & Causal Design
 
-<img src="Picture/Screenshot%20from%202025-11-27 17-59-03.png" alt="Image 1" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-38-40.png" alt="Dataset Management" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-38-40.png" alt="Image 2" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-38-59.png" alt="Causal Design" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-38-59.png" alt="Image 3" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-39-56.png" alt="Analysis Result" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-39-56.png" alt="Image 4" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-40-16.png" alt="S0 vs S1 Comparison" width="800"/>
 
-This is where your causal journey begins. Upload CSV data containing customer IDs, treatment indicators, and outcomes. CQOx automatically scans columns, detects data types, and suggests treatment/outcome pairs. You configure the causal design by selecting:
-- **Treatment column**: The intervention (e.g., "received_email", "discount_applied")
-- **Outcome column**: What you want to measure (e.g., "purchase_amount", "conversion")
-- **Estimator**: Choose from DR, IPW, DiD, IV, CF, SCM, or RD based on your data structure
-- **Covariates**: Features used for adjustment (age, purchase history, engagement metrics)
+<img src="Picture/Screenshot%20from%202025-11-27 17-59-03.png" alt="Dataset List View" width="800"/>
 
-After configuration, CQOx runs the analysis and returns:
-- **Incremental profit (Δ¥)**: How much revenue the intervention generated
-- **CAS Score**: Causal Assurance Score (0-1 quality metric)
-- **Verdict**: GO (high confidence), CANARY (medium confidence), or HOLD (needs more data)
+データアップロードから因果推論の実行、GO/CANARY/HOLDの判定取得までの最初のステップです。CSV形式の顧客データ（顧客ID、介入指標、アウトカム）をアップロードし、CQOxが自動的に列タイプをスキャン、treatment/outcomeカラムの候補を検出します。
+
+因果デザインの設定：
+- **Treatment列**: 介入内容（例：「メール送信フラグ」「割引適用」）
+- **Outcome列**: 測定したい結果（例：「購入金額」「コンバージョン」）
+- **推定量**: データ構造に応じてDR、IPW、DiD、IV、CF、SCM、RDから選択
+- **共変量**: 調整に使用する特徴量（年齢、購入履歴、エンゲージメント指標）
+
+実行後、以下を取得：
+- **増分利益（Δ¥）**: 介入によって生成された収益
+- **CASスコア**: 因果確実性スコア（0-1の品質指標）
+- **判定**: GO（高信頼）、CANARY（中信頼）、HOLD（データ不足）
 
 **Key Diagnostics:**
-- **Dataset Management View**: Shows all uploaded datasets with row counts, column counts, upload timestamps, and data quality indicators. Allows quick access to previously uploaded data and tracks data lineage.
-- **Causal Design Interface**: Provides treatment/outcome selection dropdowns, estimator choice with guidance on which method suits your data, and covariate selection with automatic feature detection.
-- **Analysis Results Summary**: Displays GO/CANARY/HOLD verdict with color-coded risk levels, expected Δ¥ with confidence intervals, CAS score breakdown showing which quality checks passed/failed, and baseline vs treatment comparison metrics.
-- **Scenario Comparison (S0 vs S1)**: Side-by-side comparison of baseline scenario (S0) and treatment scenario (S1), showing differences in key metrics, distribution shifts, and effect heterogeneity across segments.
+- **データセット管理画面**: アップロード済みデータセット一覧、行数・列数・タイムスタンプ・品質指標を表示。過去データへの迅速アクセスとデータ系譜追跡が可能。
+- **因果デザインインターフェース**: treatment/outcome選択ドロップダウン、推定量選択（データに適した手法のガイダンス付き）、共変量選択（自動特徴検出）。
+- **分析結果サマリー**: GO/CANARY/HOLD判定（リスクレベル別色分け）、期待Δ¥（信頼区間付き）、CASスコア内訳（品質チェック合格/不合格）、ベースラインvs介入比較指標。
+- **シナリオ比較（S0 vs S1）**: ベースラインシナリオ（S0）と介入シナリオ（S1）のサイドバイサイド比較。主要指標の差分、分布シフト、セグメント別効果異質性を表示。
 
 ---
 
 ### 4.2 Diagnostics & Quality Assurance
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-40-49.png" alt="Image 5" width="800"/>
+因果推論を実行後、結果が信頼できるかを検証する必要があります。このモジュールは因果仮定を検証し、結果品質を定量化する20以上の診断チェックを提供します。これらの診断結果はすべて**CASスコア（因果確実性スコア）**計算にフィードされます。
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-41-00.png" alt="Image 6" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-40-16.png" alt="Image 7" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-41-31.png" alt="Image 8" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-41-50.png" alt="Image 9" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-42-09.png" alt="Image 10" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-42-22.png" alt="Image 11" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-42-39.png" alt="Image 12" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-42-52.png" alt="Image 13" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-43-21.png" alt="Image 14" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-43-31.png" alt="Image 15" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-44-14.png" alt="Image 16" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-44-41.png" alt="Image 17" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-44-52.png" alt="Image 18" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-45-11.png" alt="Image 19" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-45-41.png" alt="Image 20" width="800"/>
-
-After running causal inference, you need to verify that the result is trustworthy. This module provides 20+ diagnostic checks that validate causal assumptions and quantify result quality. These diagnostics feed into the **CAS Score** (Causal Assurance Score) calculation.
-
-The Diagnostics module is where analysts spend time before presenting results to executives. It answers questions like:
-- "Can I trust this treatment effect estimate?"
-- "Are there hidden confounders I didn't account for?"
-- "Will this result hold up if I deploy to production?"
+診断モジュールはアナリストが経営陣への報告前に時間をかける場所です。以下の質問に答えます：
+- 「この介入効果推定値は信頼できるか？」
+- 「考慮していない隠れた交絡因子はないか？」
+- 「この結果は本番環境にデプロイしても持続するか？」
 
 **Key Diagnostics:**
 
-- **Overlap/Positivity Diagnostics**: Verifies that both treated and control units exist across the covariate distribution. Visualizes propensity score distribution (probability of treatment given covariates) to ensure common support regions exist. If certain customer segments have 100% treatment or 0% treatment probability, causal inference is impossible for those segments – this diagnostic catches that problem early.
+- **Overlap/Positivity診断**: 共変量分布全体にわたって介入群と対照群の両方が存在することを確認。傾向スコア分布（共変量が与えられた場合の介入確率）を可視化し、共通サポート領域が存在することを確保。特定の顧客セグメントが100%介入または0%介入の確率を持つ場合、そのセグメントでは因果推論が不可能 – この診断で早期発見。
 
-- **Covariate Balance**: Checks whether treated and control groups are comparable after adjustment. Displays Love Plots showing Standardized Mean Differences (SMD) before and after weighting/matching. SMD > 0.1 indicates imbalance that could bias results. This diagnostic ensures that any differences in outcomes are due to treatment, not pre-existing group differences.
+- **共変量バランス**: 調整後に介入群と対照群が比較可能かをチェック。重み付け/マッチング前後の標準化平均差（SMD）を示すLove Plotを表示。SMD > 0.1はバイアスを引き起こす可能性のある不均衡を示す。この診断により、アウトカムの差が介入によるものであり、既存のグループ差によるものではないことを保証。
 
-- **Sensitivity Analysis**: Assesses how sensitive your results are to unmeasured confounding. Computes Rosenbaum Bounds (Γ values) and E-values to quantify how strong unmeasured confounding would need to be to eliminate the observed effect. For example, "E-value = 2.5" means an unmeasured confounder would need to be 2.5x stronger than all measured covariates to explain away the treatment effect.
+- **感度分析**: 未測定交絡に対する結果の頑健性を評価。Rosenbaum境界（Γ値）とE値を計算し、観測効果を消失させるために必要な未測定交絡の強さを定量化。例：「E値 = 2.5」は、未測定交絡因子が測定済み共変量すべてよりも2.5倍強力でなければ介入効果を説明できないことを意味。
 
-- **Refutation Tests**: Runs falsification tests to check if your method produces spurious results. Includes:
-  - **Placebo Test**: Apply treatment to a random outcome that shouldn't be affected. If you detect an effect, something is wrong with your identification strategy.
-  - **Random Common Cause**: Add a random variable as a confounder. If it appears significant, your model is overfitting.
-  - **Data Subset Validation**: Randomly split data into 10 subsets and check if treatment effects are consistent. Large variation indicates fragile results.
+- **反証テスト**: 手法が偽陽性を生成していないかをチェックする反証検定を実行。含まれる内容：
+  - **プラセボテスト**: 影響を受けないはずのランダムアウトカムに介入を適用。効果を検出した場合、識別戦略に問題あり。
+  - **ランダム共通原因**: ランダム変数を交絡因子として追加。有意と表示された場合、モデルが過学習している。
+  - **データサブセット検証**: データを10サブセットにランダム分割し、介入効果が一貫しているかをチェック。大きな変動は脆弱な結果を示す。
 
-- **Advanced Diagnostics**: Additional checks for complex scenarios:
-  - **Network Spillover**: Detects interference between units (e.g., one customer's treatment affects another's outcome)
-  - **Temporal Interference**: Checks if effects change over time (seasonality, trends)
-  - **Effect Heterogeneity**: Identifies customer segments where treatment effects differ significantly (feeds into Causal Forest CATE estimation)
+- **高度な診断**: 複雑なシナリオ向けの追加チェック：
+  - **ネットワークスピルオーバー**: ユニット間の干渉を検出（例：ある顧客への介入が別の顧客のアウトカムに影響）
+  - **時間的干渉**: 効果が時間とともに変化するかをチェック（季節性、トレンド）
+  - **効果異質性**: 介入効果が大きく異なる顧客セグメントを特定（Causal Forest CATE推定にフィード）
 
-All diagnostic results aggregate into the **CAS Score**, a single 0-1 metric indicating confidence in the causal estimate. CAS ≥ 0.8 → GO, 0.6-0.8 → CANARY, < 0.6 → HOLD.
+すべての診断結果はCASスコアに集約される単一の0-1指標で、因果推定の信頼度を示します。CAS ≥ 0.8 → GO、0.6-0.8 → CANARY、< 0.6 → HOLD。
 
 ---
 
 ### 4.3 Decision Console
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-46-06.png" alt="Image 21" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-46-06.png" alt="Decision Console" width="800"/>
 
-This is the executive dashboard where CMOs and growth teams make deployment decisions. All completed analyses appear as **Policy Cards** ranked by incremental profit (Δ¥). The console shows:
+CMOや成長チームがデプロイ決定を行うエグゼクティブダッシュボードです。完了した全分析が**ポリシーカード**として増分利益（Δ¥）順にランク付けされて表示されます。
 
-- **Total Δ¥**: Cumulative incremental profit across all GO-rated policies
-- **Average Δ¥ / Policy**: Mean impact per intervention
-- **Mean CAS**: Average quality score across policies (higher = more confidence)
-- **CVaR (Conditional Value at Risk)**: Worst 10% tail risk – how much you could lose in downside scenarios
+コンソールに表示される内容：
+- **Total Δ¥**: 全GO評価ポリシーの累積増分利益
+- **Average Δ¥ / Policy**: 介入あたりの平均インパクト
+- **Mean CAS**: ポリシー全体の平均品質スコア（高いほど信頼性高）
+- **CVaR（条件付きバリュー・アット・リスク）**: 最悪10%のテールリスク – 下振れシナリオでどれだけ損失が出るか
 
-Policy cards are color-coded by verdict:
-- 🟢 **GO**: CAS ≥ 0.8, deploy immediately
-- 🟡 **CANARY**: CAS 0.6-0.8, deploy to 10-20% of users first, monitor, then scale
-- 🔴 **HOLD**: CAS < 0.6, collect more data or redesign intervention
+ポリシーカードは判定別に色分け：
+- 🟢 **GO**: CAS ≥ 0.8、即座にデプロイ
+- 🟡 **CANARY**: CAS 0.6-0.8、まず10-20%のユーザーにデプロイ、モニター後スケール
+- 🔴 **HOLD**: CAS < 0.6、データ追加収集または介入再設計
 
-Each policy card shows:
-- Δ¥ with 95% confidence interval
-- ROI (incremental profit / cost)
-- Target segment (SQL-defined customer group)
-- Risk score (variance of treatment effect)
-- CAS score breakdown
+各ポリシーカードに含まれる情報：
+- Δ¥（95%信頼区間付き）
+- ROI（増分利益 / コスト）
+- ターゲットセグメント（SQL定義された顧客グループ）
+- リスクスコア（介入効果の分散）
+- CASスコア内訳
 
 **Key Diagnostics:**
-- **KPI Summary Panel**: Displays Total Δ¥, Avg Δ¥/Policy, Mean CAS, and CVaR with trend indicators (up/down arrows showing changes from previous period).
-- **Δ¥ Trend Chart**: Time-series visualization showing how incremental profit evolves across policy deployments. Helps identify which campaigns had sustained vs temporary effects.
-- **Segment Portfolio Breakdown**: Shows which customer segments contribute most to total Δ¥. Reveals concentration risk (e.g., "80% of profit from 20% of policies").
-- **Channel Performance Comparison**: Compares effectiveness across marketing channels (Email, SMS, Push, LINE, In-App). Shows which channels have highest Δ¥ per customer and best CAS scores.
-- **Decision Cards Table**: Sortable, filterable table of all policies with Δ¥, ROI, CAS, Risk, and Verdict. Allows drill-down into individual policy diagnostics.
+- **KPIサマリーパネル**: Total Δ¥、Avg Δ¥/Policy、Mean CAS、CVaRをトレンド指標（前期比上昇/下降矢印）と共に表示。
+- **Δ¥トレンドチャート**: ポリシーデプロイ全体での増分利益の推移を示す時系列可視化。持続効果vs一時効果を識別。
+- **セグメントポートフォリオ内訳**: どの顧客セグメントが総Δ¥に最も貢献しているかを表示。集中リスクを明示（例：「20%のポリシーから80%の利益」）。
+- **チャネルパフォーマンス比較**: マーケティングチャネル（Email、SMS、Push、LINE、In-App）間の効果を比較。顧客あたりΔ¥が最高のチャネルと最良CASスコアを表示。
+- **デシジョンカードテーブル**: Δ¥、ROI、CAS、Risk、Verdictを含む全ポリシーのソート可能・フィルタ可能テーブル。個別ポリシー診断へのドリルダウンが可能。
 
 ---
 
 ### 4.4 Policy Lab
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-48-45.png" alt="Image 22" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-48-45.png" alt="Custom Scenario Builder" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-49-51.png" alt="Image 23" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-49-51.png" alt="Target Segment Builder" width="800"/>
 
-Before deploying a policy to production, use Policy Lab to design, simulate, and refine intervention strategies. This module lets you:
+ポリシーを本番環境にデプロイする前に、Policy Labで介入戦略の設計・シミュレーション・洗練を行います。
 
-**Custom Scenario Builder:**
-Define intervention parameters using interactive sliders and checkboxes:
-- **Contact Frequency**: How many touchpoints per month? (1-30)
-- **Discount Rate**: What discount percentage? (0-50%)
-- **Budget Cap**: Maximum spend per customer or campaign
-- **Communication Channels**: Email, SMS, Push, LINE, In-App, Direct Mail (select multiple)
+**カスタムシナリオビルダー:**
+インタラクティブなスライダーとチェックボックスで介入パラメータを定義：
+- **接触頻度**: 月あたりタッチポイント数（1-30）
+- **割引率**: 割引パーセンテージ（0-50%）
+- **予算上限**: 顧客またはキャンペーンあたりの最大支出
+- **コミュニケーションチャネル**: Email、SMS、Push、LINE、In-App、ダイレクトメール（複数選択可能）
 
-**Target Segment Builder:**
-Define exactly which customers receive the intervention using:
-- **GUI Builder**: Point-and-click interface for common segments (RFM score, recency, engagement level)
-- **SQL Editor**: Write arbitrary SQL WHERE clauses for advanced targeting
+**ターゲットセグメントビルダー:**
+介入を受ける顧客を正確に定義：
+- **GUIビルダー**: 一般的なセグメント用のポイント＆クリックインターフェース（RFMスコア、最終購入日、エンゲージメントレベル）
+- **SQLエディタ**: 高度なターゲティング用の任意のSQL WHERE句を記述
 
-Example segments:
-- "High-Value Dormant Users": `rfm_score >= 4 AND days_since_last_purchase > 90`
-- "Weekend Shoppers in Major Cities": `purchase_day_of_week IN ('Sat', 'Sun') AND city IN ('Tokyo', 'Osaka', 'Nagoya')`
-- "Mobile App Power Users": `app_sessions_last_30d > 15 AND platform = 'mobile'`
-- "Cart Abandoners with High Intent": `cart_value > 5000 AND cart_abandoned = TRUE AND days_since_abandon < 7`
-
-**Scenario Comparison (S0 vs S1):**
-Compare baseline scenario (S0: no intervention) vs treatment scenario (S1: with intervention) to predict:
-- Expected Δ¥ change
-- Segment-level response heterogeneity
-- Risk of cannibalization or spillover effects
-
-**Export to YAML/JSON:**
-Once designed, export the scenario specification (ScenarioSpec) as YAML or JSON for version control, reproducibility, and API integration.
+セグメント例：
+- "高価値休眠ユーザー": `rfm_score >= 4 AND days_since_last_purchase > 90`
+- "主要都市の週末買い物客": `purchase_day_of_week IN ('Sat', 'Sun') AND city IN ('Tokyo', 'Osaka', 'Nagoya')`
+- "モバイルアプリパワーユーザー": `app_sessions_last_30d > 15 AND platform = 'mobile'`
+- "高意図カート放棄者": `cart_value > 5000 AND cart_abandoned = TRUE AND days_since_abandon < 7`
 
 **Key Diagnostics:**
-- **Scenario Builder Interface**: Provides sliders for contact frequency, discount rate, budget cap, and checkboxes for channel selection. Real-time preview shows estimated reach and cost.
-- **Segment Definition Tools**: GUI builder with drag-and-drop conditions + SQL editor for power users. Shows segment size preview and distribution of key features within the segment.
-- **S0 vs S1 Comparison View**: Side-by-side comparison of predicted outcomes under baseline vs treatment scenarios. Highlights expected lift, cost, and net Δ¥.
-- **ScenarioSpec Export**: Generates YAML/JSON specification files that can be version-controlled, shared with teams, or loaded into API endpoints for automated deployment.
+- **シナリオビルダーインターフェース**: 接触頻度、割引率、予算上限のスライダー、チャネル選択チェックボックスを提供。リアルタイムプレビューで推定リーチとコストを表示。
+- **セグメント定義ツール**: ドラッグ&ドロップ条件のGUIビルダー + パワーユーザー向けSQLエディタ。セグメントサイズプレビューとセグメント内主要特徴の分布を表示。
+- **ScenarioSpecエクスポート**: バージョン管理、チーム共有、APIエンドポイントへのロード用のYAML/JSON仕様ファイルを生成。
 
 ---
 
 ### 4.5 Digital Twin
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-47-20.png" alt="Image 24" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-20.png" alt="Digital Twin - CLV Summary" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-50-28.png" alt="Image 25" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-50-28.png" alt="Digital Twin - Persona Simulation" width="800"/>
 
-Before deploying a policy to real customers, simulate the outcome using **Digital Twin** – a persona-based simulation engine that predicts customer-level responses.
+実顧客へのデプロイ前に、**Digital Twin**でアウトカムをシミュレート – ペルソナベースのシミュレーションエンジンが顧客レベルの応答を予測します。
 
-Digital Twin answers questions like:
-- "What happens if we send 20% discount to high-value dormant users?"
-- "How will weekend shoppers respond to LINE push notifications?"
-- "What's the expected lifetime value (CLV) lift from this intervention?"
+Digital Twinが答える質問：
+- 「高価値休眠ユーザーに20%割引を送ったら何が起こるか？」
+- 「週末買い物客はLINEプッシュ通知にどう反応するか？」
+- 「この介入による期待顧客生涯価値（CLV）上昇は？」
 
-**How it works:**
-1. Define customer personas (e.g., "High-value frequent buyer", "Low-engagement bargain hunter")
-2. Specify intervention scenario (discount rate, channel, frequency)
-3. CQOx uses **Causal Forest (CATE estimation)** to predict treatment effects for each persona
-4. Digital Twin simulates responses, computes aggregate Δ¥, and flags risks (cannibalization, negative response)
+**動作の仕組み:**
+1. 顧客ペルソナを定義（例：「高価値頻繁購入者」「低エンゲージメント割引追求者」）
+2. 介入シナリオを指定（割引率、チャネル、頻度）
+3. CQOxが**Causal Forest（CATE推定）**を使用して各ペルソナの介入効果を予測
+4. Digital Twinが応答をシミュレート、集計Δ¥を計算、リスク（カニバリゼーション、負の応答）をフラグ
 
-**Outputs:**
-- **CLV (Customer Lifetime Value) comparison**: Treated vs Control CLV, Δ CLV
-- **Segment-level effects**: Which personas benefit most? Which are hurt by the intervention?
-- **Confidence intervals**: Uncertainty in predictions
+**アウトプット:**
+- **CLV（顧客生涯価値）比較**: 介入群 vs 対照群CLV、Δ CLV
+- **セグメントレベル効果**: どのペルソナが最も利益を得るか？どのペルソナが介入によって損害を受けるか？
+- **信頼区間**: 予測の不確実性
 
-This prevents costly mistakes like:
-- Sending discounts to customers who would've purchased anyway (cannibalization)
-- Targeting segments with negative treatment effects (backfire)
+以下のようなコストのかかるミスを防止：
+- 購入するはずだった顧客への割引送付（カニバリゼーション）
+- 負の介入効果を持つセグメントへのターゲティング（逆効果）
 
 **Key Diagnostics:**
-- **CLV Summary Panel**: Shows CLV (Treated), CLV (Control), and Δ CLV with confidence intervals. Breaks down by segment to show which customer groups gain/lose lifetime value.
-- **Persona-Level Simulation**: Predicts response for individual personas (e.g., "Frequent Buyer", "Bargain Hunter") using Causal Forest CATE estimates. Shows expected Δ¥, response rate, and churn risk for each persona.
-- **Scenario Impact Preview**: Simulates aggregate outcomes before deployment. Answers "What if we send this offer to 10,000 customers?" by extrapolating persona-level effects to population-level metrics.
-- **Risk Flags**: Automatically detects potential problems like cannibalization (high baseline purchasers getting unnecessary discounts), negative treatment effects (intervention backfires for certain segments), or high variance (unreliable predictions).
+- **CLVサマリーパネル**: CLV（介入群）、CLV（対照群）、Δ CLV（信頼区間付き）を表示。セグメント別に分解し、どの顧客グループが生涯価値を獲得/喪失するかを表示。
+- **ペルソナレベルシミュレーション**: 個別ペルソナ（例：「頻繁購入者」「割引追求者」）の応答をCausal Forest CATE推定で予測。期待Δ¥、応答率、解約リスクを各ペルソナごとに表示。
+- **シナリオインパクトプレビュー**: デプロイ前に集計アウトカムをシミュレート。「このオファーを10,000人の顧客に送ったら？」に答える。ペルソナレベル効果を母集団レベル指標に外挿。
+- **リスクフラグ**: カニバリゼーション（高ベースライン購入者への不要な割引）、負の介入効果（特定セグメントで介入が逆効果）、高分散（信頼できない予測）などの潜在的問題を自動検出。
 
 ---
 
 ### 4.6 Marketing Portfolio & ROI
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-46-36.png" alt="Image 26" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-46-36.png" alt="Portfolio - Experiment Studio" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-47-04.png" alt="Image 27" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-04.png" alt="Portfolio - Offline Analysis" width="800"/>
 
-Not all policies can be deployed simultaneously. Budget constraints, audience overlap, and cannibalization mean you need to **optimize the portfolio** of interventions.
+すべてのポリシーを同時にデプロイできるわけではありません。予算制約、オーディエンスオーバーラップ、カニバリゼーションのため、介入の**ポートフォリオ最適化**が必要です。
 
-This module computes the **Pareto Frontier** – the set of policy combinations that maximize:
-- **Profit (Δ¥)**: Total incremental revenue
-- **Risk (CVaR)**: Worst-case downside
-- **Quality (CAS)**: Confidence in results
+このモジュールは**パレートフロンティア**を計算 – 以下を最大化するポリシー組み合わせセット：
+- **利益（Δ¥）**: 総増分収益
+- **リスク（CVaR）**: 最悪ケース下振れ
+- **品質（CAS）**: 結果への信頼度
 
-**How it works:**
-1. Input all GO and CANARY-rated policies
-2. Specify constraints (total budget, max frequency caps, channel limits)
-3. CQOx runs multi-objective optimization to find efficient portfolios
-4. Visualize Pareto Frontier: trade-off between Profit and Risk
-
-**Outputs:**
-- **Recommended Portfolio Strategy**: Top policy combination with expected Δ¥, CAS score, risk score, ROI, and rationale
-- **Pareto Frontier Chart**: Scatter plot showing all feasible portfolios, color-coded by CAS quality
-- **Portfolio Contribution Analysis**: Ranks policies by marginal contribution to total Δ¥
-
-**Example decision:**
-"Deploy Policy #1 (Email to dormant users), Policy #5 (LINE push to weekend shoppers), and Policy #8 (discount to cart abandoners) together. Expected Δ¥: +¥665,883, ROI: 5.0x, Risk Score: 0.59 (Medium)."
+**動作の仕組み:**
+1. 全GO・CANARY評価ポリシーを入力
+2. 制約を指定（総予算、最大頻度上限、チャネル制限）
+3. CQOxが多目的最適化を実行し、効率的なポートフォリオを発見
+4. パレートフロンティアを可視化：利益とリスクのトレードオフ
 
 **Key Diagnostics:**
-- **Recommended Portfolio Card**: Shows the optimal policy combination with Expected Δ¥, CAS Score, Risk Score, ROI, and decision rationale. Explains why this combination is Pareto-optimal.
-- **Pareto Frontier Visualization**: Scatter plot of Profit (x-axis) vs Risk (y-axis), with points color-coded by CAS quality (High/Med/Low). Shows efficient frontier and dominated portfolios.
-- **Portfolio Contribution Ranking**: Lists top 5 policies by marginal contribution to total Δ¥. Helps identify which policies are "must-have" vs "nice-to-have".
-- **Constraint Satisfaction Check**: Validates that portfolio respects budget caps, frequency limits, and channel restrictions. Flags violations before deployment.
+- **推奨ポートフォリオカード**: 期待Δ¥、CASスコア、リスクスコア、ROI、意思決定根拠を含む最適ポリシー組み合わせを表示。この組み合わせがパレート最適である理由を説明。
+- **パレートフロンティア可視化**: 利益（x軸）vsリスク（y軸）の散布図。CAS品質（High/Med/Low）で色分け。効率的フロンティアと劣位ポートフォリオを表示。
+- **ポートフォリオ貢献度ランキング**: 総Δ¥への限界貢献度による上位5ポリシーをリスト。「必須」vs「あれば良い」ポリシーを特定。
+- **制約充足チェック**: ポートフォリオが予算上限、頻度制限、チャネル制限を尊重することを検証。デプロイ前に違反をフラグ。
 
 ---
 
 ### 4.7 Advanced Analysis
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-47-37.png" alt="Image 28" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-37.png" alt="Governance Center" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-47-53.png" alt="Image 29" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-53.png" alt="Data Quality Warnings" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-48-07.png" alt="Image 30" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-48-07.png" alt="Compliance Frequency Cap" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-48-28.png" alt="Image 31" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-48-28.png" alt="Quality Gates Overview" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-40-49.png" alt="Image 32" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-40-49.png" alt="Advanced Diagnostics 1" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-41-00.png" alt="Image 33" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27 16-41-00.png" alt="Advanced Diagnostics 2" width="800"/>
 
-Before policies are exported to production systems, they must pass through **governance gates** and **experimentation validation**. This module combines:
+ポリシーが本番システムにエクスポートされる前に、**ガバナンスゲート**と**実験検証**を通過する必要があります。
 
-**Governance Center:**
-Enforce fairness, quality, and compliance checks:
-- **Fairness Checks**: Detect discriminatory effects across sensitive attributes (age, gender, region, income). Uses uplift disparity metrics to flag policies that disproportionately benefit/harm protected groups.
-- **Data Quality Gates**: Validate sample size requirements, check for data leaks (future information in training data), detect label noise.
-- **Frequency Caps**: Prevent over-exposure (e.g., max 10 emails/month per customer). Blocks policies that violate frequency rules.
+**ガバナンスセンター:**
+公平性、品質、コンプライアンスチェックを実施：
+- **公平性チェック**: 機密属性（年齢、性別、地域、収入）間の差別的効果を検出。保護グループに不均衡に利益/損害を与えるポリシーをフラグする uplift disparity 指標を使用。
+- **データ品質ゲート**: サンプルサイズ要件を検証、データリーク（訓練データの未来情報）をチェック、ラベルノイズを検出。
+- **頻度上限**: 過度の露出を防止（例：顧客あたり月最大10通のメール）。頻度ルールに違反するポリシーをブロック。
 
-**Quality Gates Overview:**
-All governance rules appear in a single table:
-- Rule name (e.g., "Fairness Uplift Disparity", "Data Quality Sample Size")
-- Type (fairness, data_quality, compliance)
-- Severity (critical, high, medium, low)
-- Action (block, review, warn)
-- Threshold (e.g., max uplift disparity = 1000, min sample size = 100)
+**品質ゲート概要:**
+すべてのガバナンスルールが単一テーブルに表示：
+- ルール名（例：「公平性Uplift Disparity」「データ品質サンプルサイズ」）
+- タイプ（fairness、data_quality、compliance）
+- 重要度（critical、high、medium、low）
+- アクション（block、review、warn）
+- 閾値（例：最大uplift disparity = 1000、最小サンプルサイズ = 100）
 
-Policies that fail **critical** gates are blocked from export. **High severity** gates trigger manual review. **Medium/low** generate warnings.
-
-**Experiment Studio (optional):**
-For policies that need additional validation, set up multi-arm experiments:
-- Define control, variant A, variant B
-- Specify allocation rules (e.g., 50/25/25 split)
-- Run offline analysis using DR-Learner on historical data
-- Preview expected results before launching live experiment
+**critical**ゲートに失敗したポリシーはエクスポートからブロック。**high severity**ゲートは手動レビューをトリガー。**medium/low**は警告を生成。
 
 **Key Diagnostics:**
-- **Governance Data & Sensitivity Form**: Input interface for fairness checks. Accepts JSON payload with treatment effects by sensitive attributes. Runs disparity tests and flags violations.
-- **Data Quality Warnings Table**: Lists all quality gate violations with actual vs required values. Example: "Sample size = 4, required = 100" → BLOCK.
-- **Compliance Frequency Cap Checker**: Validates user exposure data against frequency limits. Shows which users exceed caps and prevents policy export.
-- **Quality Gates Overview**: Master table of all governance rules. Provides at-a-glance view of which gates passed/failed for each policy.
-- **Multi-Arm Experiment Setup**: Allows definition of control and treatment variants with custom allocation rules. Supports offline DR analysis to preview results before live deployment.
-- **Advanced Diagnostics Summary**: Aggregates all quality, fairness, and compliance checks into a single actionable summary with recommendations.
+- **ガバナンスデータ&感度フォーム**: 公平性チェック用の入力インターフェース。機密属性別の介入効果を含むJSONペイロードを受け入れ。disparity testを実行し違反をフラグ。
+- **データ品質警告テーブル**: 実値vs必要値を含むすべての品質ゲート違反をリスト。例：「サンプルサイズ = 4、必要 = 100」→ BLOCK。
+- **コンプライアンス頻度上限チェッカー**: ユーザー露出データを頻度制限に対して検証。上限を超えるユーザーを表示しポリシーエクスポートを防止。
+- **品質ゲート概要**: 全ガバナンスルールのマスターテーブル。各ポリシーでどのゲートが合格/不合格かの一覧を提供。
+- **マルチアーム実験セットアップ**: カスタム割り当てルールで対照群と介入バリアントの定義を許可。ライブデプロイ前の結果プレビュー用オフラインDR分析をサポート。
+- **高度な診断サマリー**: すべての品質、公平性、コンプライアンスチェックを推奨事項を含む単一のアクション可能なサマリーに集約。
 
 ---
 
