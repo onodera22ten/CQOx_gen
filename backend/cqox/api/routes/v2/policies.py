@@ -403,9 +403,9 @@ async def get_policy_run(
             }
         )
         row = result.fetchone()
-        
+
         if not row:
-        raise HTTPException(status_code=404, detail="Run not found")
+            raise HTTPException(status_code=404, detail="Run not found")
 
         # Parse JSONB fields
         frontier = json.loads(row[13]) if row[13] else None

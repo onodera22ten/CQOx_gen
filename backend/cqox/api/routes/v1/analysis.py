@@ -14,6 +14,7 @@ import json
 from pydantic import BaseModel, Field
 
 from cqox.database.connection import get_db
+from cqox.database.models import AnalysisRun
 from cqox.auth.dependencies import get_current_user
 
 
