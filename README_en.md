@@ -68,27 +68,76 @@ CQOx is fundamentally different from generic AI/ML tools:
 ## 3. Complete User Journey
 
 ```mermaid
-graph LR
-    Upload[📊 Upload Data] --> Design[🔬 Causal Design]
-    Design --> Portfolio[📈 Portfolio Optimization]
-    Portfolio --> Console[📍 Decision Console]
-    Console --> Twin[🔮 Digital Twin]
-    Twin --> Gate[🚪 Export Gate]
-    Gate --> Prod[🚀 Production]
-    Prod --> Monitor[📊 Monitor Results]
-    Monitor --> Learn[🔄 Learn & Iterate]
-    Learn --> Upload
+flowchart TD
+    Start([Start: Business Question]) --> Upload
 
-    style Design fill:#8b5cf6,stroke:#6d28d9,color:#fff,stroke-width:2px
-    style Portfolio fill:#10b981,stroke:#059669,color:#fff,stroke-width:2px
-    style Gate fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:2px
-    style Prod fill:#3b82f6,stroke:#1e40af,color:#fff,stroke-width:2px
+    Upload[📊 Dataset Management<br/>━━━━━━━━━━━━━━<br/>Upload CSV/Parquet<br/>125,000 rows<br/>18 features<br/> <br/> ] --> Design
+
+    Design[🔬 Causal Design & Analysis<br/>━━━━━━━━━━━━━━<br/>Select Estimator DR/IPW/DiD/IV/CF/SCM/RD<br/>Configure Treatment & Outcome<br/>Run Causal Analysis<br/> <br/> ] --> Diagnostics
+
+    Diagnostics[🔍 Diagnostics & Quality Assurance<br/>━━━━━━━━━━━━━━<br/>15 Quality Checks<br/>CAS Score Calculation<br/>Overlap, Balance, Sensitivity<br/> <br/> ] --> Decision{Quality Check<br/> <br/> }
+
+    Decision -->|CAS >= 0.6<br/>PASS| Console
+    Decision -->|CAS < 0.6<br/>HOLD| Upload
+
+    Console[📍 Decision Console<br/>━━━━━━━━━━━━━━<br/>View Δ¥ Summary<br/>GO/CANARY/HOLD Verdicts<br/>ROI & Risk Metrics<br/> <br/> ] --> Parallel{Choose Path<br/> <br/> }
+
+    Parallel -->|Online Experiment| Experiment
+    Parallel -->|Long-term Analysis| Growth
+    Parallel -->|Compliance Check| Governance
+    Parallel -->|Scenario Testing| PolicyLab
+
+    Experiment[🧪 Experiment Studio<br/>━━━━━━━━━━━━━━<br/>Multi-Arm Experiment Setup<br/>Offline DR Analysis<br/>Real-time Allocation<br/> <br/> ] --> Merge
+
+    Growth[📈 Growth & LTV Studio<br/>━━━━━━━━━━━━━━<br/>CLV Analysis<br/>Cohort Retention<br/>Long-term Impact<br/> <br/> ] --> Merge
+
+    Governance[🛡️ Governance Center<br/>━━━━━━━━━━━━━━<br/>Fairness Checks<br/>Data Quality Gates<br/>Frequency Cap Compliance<br/> <br/> ] --> Merge
+
+    PolicyLab[🔧 Policy Lab<br/>━━━━━━━━━━━━━━<br/>Custom Scenario Builder<br/>SQL-based Segmentation<br/>S0 vs S1 Simulation<br/> <br/> ] --> Merge
+
+    Merge{Consolidate<br/>Results<br/> <br/> } --> Portfolio
+
+    Portfolio[📊 Portfolio Optimization<br/>━━━━━━━━━━━━━━<br/>Pareto Frontier Profit vs Risk<br/>Multi-objective Optimization<br/>Budget Allocation<br/> <br/> ] --> Twin
+
+    Twin[🔮 Digital Twin<br/>━━━━━━━━━━━━━━<br/>Persona-level Simulation<br/>Predict Customer Response<br/>Counterfactual Scenarios<br/> <br/> ] --> Gate
+
+    Gate[🚪 Export Gate<br/>━━━━━━━━━━━━━━<br/>Final Quality Gate<br/>Generate Recommendations<br/>Export to Production<br/> <br/> ] --> Prod
+
+    Prod[🚀 Production Deployment<br/>━━━━━━━━━━━━━━<br/>Apply Decisions to Real Customers<br/>Monitor Performance<br/>Collect Feedback<br/> <br/> ] --> Monitor
+
+    Monitor[📊 Monitor & Learn<br/>━━━━━━━━━━━━━━<br/>Track Actual vs Predicted<br/>Update Models<br/>Continuous Improvement<br/> <br/> ] --> Upload
+
+    style Design fill:#8b5cf6,stroke:#6d28d9,color:#fff,stroke-width:3px
+    style Diagnostics fill:#ec4899,stroke:#be185d,color:#fff,stroke-width:3px
+    style Console fill:#3b82f6,stroke:#1e40af,color:#fff,stroke-width:3px
+    style Experiment fill:#8b5cf6,stroke:#6d28d9,color:#fff,stroke-width:2px
+    style Growth fill:#10b981,stroke:#059669,color:#fff,stroke-width:2px
+    style Governance fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:2px
+    style PolicyLab fill:#06b6d4,stroke:#0891b2,color:#fff,stroke-width:2px
+    style Portfolio fill:#10b981,stroke:#059669,color:#fff,stroke-width:3px
+    style Twin fill:#a855f7,stroke:#7e22ce,color:#fff,stroke-width:3px
+    style Gate fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:3px
+    style Prod fill:#3b82f6,stroke:#1e40af,color:#fff,stroke-width:3px
 ```
 
 **Time to Value**:
 - Traditional A/B testing: **3-6 weeks** per decision
 - CQOx workflow: **2-4 hours** per decision
 - **Improvement: 95% faster**
+
+**Complete Module Coverage**:
+1. 📊 Dataset Management
+2. 🔬 Causal Design & Analysis
+3. 🔍 Diagnostics (15 quality checks)
+4. 📍 Decision Console
+5. 🧪 **Experiment Studio** - Multi-arm experiments
+6. 📈 **Growth & LTV Studio** - Long-term CLV analysis
+7. 🛡️ **Governance Center** - Fairness & compliance
+8. 🔧 Policy Lab - Scenario builder
+9. 📊 Portfolio Optimization - Pareto frontier
+10. 🔮 Digital Twin - Persona simulation
+11. 🚪 Export Gate - Final quality gate
+12. 🚀 Production Deployment
 
 ---
 
@@ -98,16 +147,16 @@ graph LR
 
 **Screenshots:**
 
-![Dataset Upload](Picture/Screenshot from 2025-11-27 16-38-40.png)
+![Dataset Upload](Picture/Screenshot%20from%202025-11-27 16-38-40.png)
 *Dataset management page with upload button*
 
-![Causal Design](Picture/Screenshot from 2025-11-27 16-38-59.png)
+![Causal Design](Picture/Screenshot%20from%202025-11-27 16-38-59.png)
 *Causal Design & Evaluation page - select dataset, scenario, target metric*
 
-![Analysis Result](Picture/Screenshot from 2025-11-27 16-39-56.png)
+![Analysis Result](Picture/Screenshot%20from%202025-11-27 16-39-56.png)
 *Analysis Result showing GO verdict with Expected Δ¥: +¥133,177, CAS Score: 0.15*
 
-![S0 vs S1 Comparison](Picture/Screenshot from 2025-11-27 16-40-16.png)
+![S0 vs S1 Comparison](Picture/Screenshot%20from%202025-11-27 16-40-16.png)
 *Baseline (S0) vs Treatment (S1) scenario comparison*
 
 **Purpose**: Upload data, configure causal design, run analysis, get GO/CANARY/HOLD verdict.
@@ -123,49 +172,49 @@ graph LR
 
 **Screenshots:**
 
-![Diagnostics Overview](Picture/Screenshot from 2025-11-27 16-40-49.png)
+![Diagnostics Overview](Picture/Screenshot%20from%202025-11-27 16-40-49.png)
 *Diagnostics & Audit page with CAS Score 0.15 (LOW quality)*
 
-![Quality Indicators](Picture/Screenshot from 2025-11-27 16-41-00.png)
+![Quality Indicators](Picture/Screenshot%20from%202025-11-27 16-41-00.png)
 *Key Quality Indicators: Data Quality (SMD 2.541), Statistical Power, Effect Reliability, Model Performance*
 
-![Overlap Diagnostics](Picture/Screenshot from 2025-11-27 16-41-31.png)
+![Overlap Diagnostics](Picture/Screenshot%20from%202025-11-27 16-41-31.png)
 *Overlap/Positivity Diagnostics with Propensity Score Distribution*
 
-![Common Support Region](Picture/Screenshot from 2025-11-27 16-41-50.png)
+![Common Support Region](Picture/Screenshot%20from%202025-11-27 16-41-50.png)
 *Common Support Region showing overlap between treatment and control groups*
 
-![Balance Diagnostics](Picture/Screenshot from 2025-11-27 16-42-09.png)
+![Balance Diagnostics](Picture/Screenshot%20from%202025-11-27 16-42-09.png)
 *Covariate Balance Diagnostics with Max SMD: 2.541, Balanced Covariates: 8/8*
 
-![Love Plot](Picture/Screenshot from 2025-11-27 16-42-22.png)
+![Love Plot](Picture/Screenshot%20from%202025-11-27 16-42-22.png)
 *Love Plot showing Standardized Mean Differences before/after matching*
 
-![Sensitivity Analysis](Picture/Screenshot from 2025-11-27 16-42-39.png)
+![Sensitivity Analysis](Picture/Screenshot%20from%202025-11-27 16-42-39.png)
 *Sensitivity Analysis with Critical Γ: 1.00, E-value: 265.85, Robustness: MODERATE*
 
-![Rosenbaum Bounds](Picture/Screenshot from 2025-11-27 16-42-52.png)
+![Rosenbaum Bounds](Picture/Screenshot%20from%202025-11-27 16-42-52.png)
 *Rosenbaum Bounds (Γ Sensitivity) showing p-value changes with unmeasured confounding*
 
-![Refutation Tests 1](Picture/Screenshot from 2025-11-27 16-43-21.png)
+![Refutation Tests 1](Picture/Screenshot%20from%202025-11-27 16-43-21.png)
 *Refutation Tests: Placebo Test (PASSED), Random Common Cause (PASSED), Data Subset Validation (PASSED)*
 
-![Placebo Outcome Test](Picture/Screenshot from 2025-11-27 16-43-31.png)
+![Placebo Outcome Test](Picture/Screenshot%20from%202025-11-27 16-43-31.png)
 *Placebo Outcome Test showing no spurious effects*
 
-![Data Subset Robustness](Picture/Screenshot from 2025-11-27 16-44-14.png)
+![Data Subset Robustness](Picture/Screenshot%20from%202025-11-27 16-44-14.png)
 *Treatment Effect Robustness Across Data Subsets (10 random samples)*
 
-![Advanced Diagnostics](Picture/Screenshot from 2025-11-27 16-44-41.png)
+![Advanced Diagnostics](Picture/Screenshot%20from%202025-11-27 16-44-41.png)
 *Advanced diagnostics: Network Spillover (PASSED), Temporal Interference (PASSED), Effect Heterogeneity (DETECTED)*
 
-![Effect Heterogeneity](Picture/Screenshot from 2025-11-27 16-44-52.png)
+![Effect Heterogeneity](Picture/Screenshot%20from%202025-11-27 16-44-52.png)
 *Treatment Effect Heterogeneity by Subgroup - younger age groups show stronger effects*
 
-![Temporal Stability](Picture/Screenshot from 2025-11-27 16-45-11.png)
+![Temporal Stability](Picture/Screenshot%20from%202025-11-27 16-45-11.png)
 *Treatment Effect Temporal Stability - effect remains stable over 12-month period*
 
-![Diagnostics Summary](Picture/Screenshot from 2025-11-27 16-45-41.png)
+![Diagnostics Summary](Picture/Screenshot%20from%202025-11-27 16-45-41.png)
 *Advanced Diagnostics Summary with actionable recommendations*
 
 **Purpose**: Deep-dive quality assurance for analysts to verify causal assumptions.
@@ -183,7 +232,7 @@ graph LR
 
 **Screenshot:**
 
-![Decision Console](Picture/Screenshot from 2025-11-27 16-46-06.png)
+![Decision Console](Picture/Screenshot%20from%202025-11-27 16-46-06.png)
 *Decision Console with KPIs (Total Δ¥, Avg Δ¥/Policy, Mean CAS, CVaR), Δ¥ Trend chart, Segment Portfolio, Channel Performance, Decision Cards table*
 
 **Purpose**: Executive dashboard showing cumulative Δ¥, verdicts, and ROI trends.
@@ -200,10 +249,10 @@ graph LR
 
 **Screenshots:**
 
-![Experiment Studio](Picture/Screenshot from 2025-11-27 16-46-36.png)
+![Experiment Studio](Picture/Screenshot%20from%202025-11-27 16-46-36.png)
 *Multi-Arm Experiment Setup: select dataset, treatment/outcome columns, define arms (Control, Variant A)*
 
-![Offline Analysis](Picture/Screenshot from 2025-11-27 16-47-04.png)
+![Offline Analysis](Picture/Screenshot%20from%202025-11-27 16-47-04.png)
 *Offline Analysis (Multi-Arm) - JSON payload with feature matrix X, treatment T, outcome Y, plus analysis results table*
 
 **Purpose**: Orchestrate online experiments and analyze multi-arm offline data.
@@ -219,7 +268,7 @@ graph LR
 
 **Screenshot:**
 
-![Growth Studio](Picture/Screenshot from 2025-11-27 16-47-20.png)
+![Growth Studio](Picture/Screenshot%20from%202025-11-27 16-47-20.png)
 *Growth & LTV Studio with CLV Summary: CLV (Treated) ¥275.27, CLV (Control) ¥118.81, Δ CLV ¥156.46*
 
 **Purpose**: Run CLV, cohort, and retention analyses using Survival + Discount approach.
@@ -230,16 +279,16 @@ graph LR
 
 **Screenshots:**
 
-![Governance Data & Sensitivity](Picture/Screenshot from 2025-11-27 16-47-37.png)
+![Governance Data & Sensitivity](Picture/Screenshot%20from%202025-11-27 16-47-37.png)
 *Governance Center: Data & Sensitivity form with Fairness Threshold, Min Samples, Sensitive Attributes, Uplift Data JSON, Check Fairness and Check Data Quality buttons*
 
-![Data Quality Warnings](Picture/Screenshot from 2025-11-27 16-47-53.png)
+![Data Quality Warnings](Picture/Screenshot%20from%202025-11-27 16-47-53.png)
 *Data Quality Warnings table showing rule violations (data_quality_sample_size: actual=4, required=100)*
 
-![Compliance Frequency Cap](Picture/Screenshot from 2025-11-27 16-48-07.png)
+![Compliance Frequency Cap](Picture/Screenshot%20from%202025-11-27 16-48-07.png)
 *Compliance (Frequency Cap) form with User Exposure JSON, Max Frequency Cap (10), and Check Compliance button*
 
-![Quality Gates Overview](Picture/Screenshot from 2025-11-27 16-48-28.png)
+![Quality Gates Overview](Picture/Screenshot%20from%202025-11-27 16-48-28.png)
 *Quality Gates Overview table: Fairness Uplift Disparity (fairness, high severity, review, threshold 1000), Data Quality Gate (data_quality, medium, warn, 100), Compliance Frequency Cap (compliance, critical, block, 10)*
 
 **Purpose**: Ensure fairness, quality, and compliance before deploying policies.
@@ -256,10 +305,10 @@ graph LR
 
 **Screenshots:**
 
-![Custom Scenario Builder](Picture/Screenshot from 2025-11-27 16-48-45.png)
+![Custom Scenario Builder](Picture/Screenshot%20from%202025-11-27 16-48-45.png)
 *Policy Lab - Custom Scenario Builder with Contact Frequency slider, Discount Rate slider, Budget Cap slider, Communication Channels (Email, SMS, Push, LINE, In-App, Direct Mail)*
 
-![Target Segment Builder](Picture/Screenshot from 2025-11-27 16-49-51.png)
+![Target Segment Builder](Picture/Screenshot%20from%202025-11-27 16-49-51.png)
 *Target Segment Builder with GUI Builder and SQL Editor tabs, Example Target Segments (High-Value Dormant Users, Weekend Shoppers in Major Cities, Mobile App Power Users, Cart Abandoners with High Intent)*
 
 **Purpose**: Design, evaluate, and simulate marketing policies before execution.
@@ -275,10 +324,10 @@ graph LR
 
 **Screenshots:**
 
-![Recommended Portfolio Strategy](Picture/Screenshot from 2025-11-27 16-50-28.png)
+![Recommended Portfolio Strategy](Picture/Screenshot%20from%202025-11-27 16-50-28.png)
 *Recommended Portfolio Strategy card: Expected Δ¥ +¥665,883, CAS Score 0.15 (Low Confidence), Risk Score 0.59 (Medium Risk), ROI 5.0x, with Decision Rationale and Recommendations bullets*
 
-![Pareto Frontier](Picture/Screenshot from 2025-11-27 17-59-03.png)
+![Pareto Frontier](Picture/Screenshot%20from%202025-11-27 17-59-03.png)
 *Pareto Frontier (Profit vs Risk) scatter plot showing CAS Quality (High/Med/Low) and Portfolio Contribution ranking (top 5 policies)*
 
 **Purpose**: Optimize policy portfolio on Pareto frontier (Profit vs Risk vs CAS).
