@@ -69,75 +69,39 @@ CQOx is fundamentally different from generic AI/ML tools:
 
 ```mermaid
 flowchart TD
-    Start([Start: Business Question]) --> Upload
+    Upload[📊 Dataset Upload] --> Design[🔬 Causal Design]
+    Design --> Diagnostics[🔍 Diagnostics]
+    Diagnostics --> Console[📍 Decision Console]
+    Console --> Parallel{Choose Path}
 
-    Upload[📊 Dataset Management<br/>━━━━━━━━━━━━━━<br/>Upload CSV/Parquet<br/>125,000 rows<br/>18 features<br/> <br/> ] --> Design
+    Parallel --> Experiment[🧪 Experiment Studio]
+    Parallel --> Growth[📈 Growth & LTV Studio]
+    Parallel --> Governance[🛡️ Governance Center]
+    Parallel --> PolicyLab[🔧 Policy Lab]
 
-    Design[🔬 Causal Design & Analysis<br/>━━━━━━━━━━━━━━<br/>Select Estimator DR/IPW/DiD/IV/CF/SCM/RD<br/>Configure Treatment & Outcome<br/>Run Causal Analysis<br/> <br/> ] --> Diagnostics
+    Experiment --> Portfolio[📊 Portfolio Optimization]
+    Growth --> Portfolio
+    Governance --> Portfolio
+    PolicyLab --> Portfolio
 
-    Diagnostics[🔍 Diagnostics & Quality Assurance<br/>━━━━━━━━━━━━━━<br/>15 Quality Checks<br/>CAS Score Calculation<br/>Overlap, Balance, Sensitivity<br/> <br/> ] --> Decision{Quality Check<br/> <br/> }
+    Portfolio --> Twin[🔮 Digital Twin]
+    Twin --> Gate[🚪 Export Gate]
+    Gate --> Prod[🚀 Production]
+    Prod --> Monitor[📊 Monitor]
+    Monitor --> Upload
 
-    Decision -->|CAS >= 0.6<br/>PASS| Console
-    Decision -->|CAS < 0.6<br/>HOLD| Upload
-
-    Console[📍 Decision Console<br/>━━━━━━━━━━━━━━<br/>View Δ¥ Summary<br/>GO/CANARY/HOLD Verdicts<br/>ROI & Risk Metrics<br/> <br/> ] --> Parallel{Choose Path<br/> <br/> }
-
-    Parallel -->|Online Experiment| Experiment
-    Parallel -->|Long-term Analysis| Growth
-    Parallel -->|Compliance Check| Governance
-    Parallel -->|Scenario Testing| PolicyLab
-
-    Experiment[🧪 Experiment Studio<br/>━━━━━━━━━━━━━━<br/>Multi-Arm Experiment Setup<br/>Offline DR Analysis<br/>Real-time Allocation<br/> <br/> ] --> Merge
-
-    Growth[📈 Growth & LTV Studio<br/>━━━━━━━━━━━━━━<br/>CLV Analysis<br/>Cohort Retention<br/>Long-term Impact<br/> <br/> ] --> Merge
-
-    Governance[🛡️ Governance Center<br/>━━━━━━━━━━━━━━<br/>Fairness Checks<br/>Data Quality Gates<br/>Frequency Cap Compliance<br/> <br/> ] --> Merge
-
-    PolicyLab[🔧 Policy Lab<br/>━━━━━━━━━━━━━━<br/>Custom Scenario Builder<br/>SQL-based Segmentation<br/>S0 vs S1 Simulation<br/> <br/> ] --> Merge
-
-    Merge{Consolidate<br/>Results<br/> <br/> } --> Portfolio
-
-    Portfolio[📊 Portfolio Optimization<br/>━━━━━━━━━━━━━━<br/>Pareto Frontier Profit vs Risk<br/>Multi-objective Optimization<br/>Budget Allocation<br/> <br/> ] --> Twin
-
-    Twin[🔮 Digital Twin<br/>━━━━━━━━━━━━━━<br/>Persona-level Simulation<br/>Predict Customer Response<br/>Counterfactual Scenarios<br/> <br/> ] --> Gate
-
-    Gate[🚪 Export Gate<br/>━━━━━━━━━━━━━━<br/>Final Quality Gate<br/>Generate Recommendations<br/>Export to Production<br/> <br/> ] --> Prod
-
-    Prod[🚀 Production Deployment<br/>━━━━━━━━━━━━━━<br/>Apply Decisions to Real Customers<br/>Monitor Performance<br/>Collect Feedback<br/> <br/> ] --> Monitor
-
-    Monitor[📊 Monitor & Learn<br/>━━━━━━━━━━━━━━<br/>Track Actual vs Predicted<br/>Update Models<br/>Continuous Improvement<br/> <br/> ] --> Upload
-
-    style Design fill:#8b5cf6,stroke:#6d28d9,color:#fff,stroke-width:3px
-    style Diagnostics fill:#ec4899,stroke:#be185d,color:#fff,stroke-width:3px
-    style Console fill:#3b82f6,stroke:#1e40af,color:#fff,stroke-width:3px
+    style Design fill:#8b5cf6,stroke:#6d28d9,color:#fff,stroke-width:2px
+    style Diagnostics fill:#ec4899,stroke:#be185d,color:#fff,stroke-width:2px
+    style Console fill:#3b82f6,stroke:#1e40af,color:#fff,stroke-width:2px
     style Experiment fill:#8b5cf6,stroke:#6d28d9,color:#fff,stroke-width:2px
     style Growth fill:#10b981,stroke:#059669,color:#fff,stroke-width:2px
     style Governance fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:2px
     style PolicyLab fill:#06b6d4,stroke:#0891b2,color:#fff,stroke-width:2px
-    style Portfolio fill:#10b981,stroke:#059669,color:#fff,stroke-width:3px
-    style Twin fill:#a855f7,stroke:#7e22ce,color:#fff,stroke-width:3px
-    style Gate fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:3px
-    style Prod fill:#3b82f6,stroke:#1e40af,color:#fff,stroke-width:3px
+    style Portfolio fill:#10b981,stroke:#059669,color:#fff,stroke-width:2px
+    style Twin fill:#a855f7,stroke:#7e22ce,color:#fff,stroke-width:2px
+    style Gate fill:#f59e0b,stroke:#d97706,color:#fff,stroke-width:2px
+    style Prod fill:#3b82f6,stroke:#1e40af,color:#fff,stroke-width:2px
 ```
-
-**Time to Value**:
-- Traditional A/B testing: **3-6 weeks** per decision
-- CQOx workflow: **2-4 hours** per decision
-- **Improvement: 95% faster**
-
-**Complete Module Coverage**:
-1. 📊 Dataset Management
-2. 🔬 Causal Design & Analysis
-3. 🔍 Diagnostics (15 quality checks)
-4. 📍 Decision Console
-5. 🧪 **Experiment Studio** - Multi-arm experiments
-6. 📈 **Growth & LTV Studio** - Long-term CLV analysis
-7. 🛡️ **Governance Center** - Fairness & compliance
-8. 🔧 Policy Lab - Scenario builder
-9. 📊 Portfolio Optimization - Pareto frontier
-10. 🔮 Digital Twin - Persona simulation
-11. 🚪 Export Gate - Final quality gate
-12. 🚀 Production Deployment
 
 ---
 
@@ -147,16 +111,16 @@ flowchart TD
 
 **Screenshots:**
 
-![Dataset Upload](Picture/Screenshot%20from%202025-11-27 16-38-40.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-38-40.png" alt="Dataset Upload" width="800"/>
 *Dataset management page with upload button*
 
-![Causal Design](Picture/Screenshot%20from%202025-11-27 16-38-59.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-38-59.png" alt="Causal Design" width="800"/>
 *Causal Design & Evaluation page - select dataset, scenario, target metric*
 
-![Analysis Result](Picture/Screenshot%20from%202025-11-27 16-39-56.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-39-56.png" alt="Analysis Result" width="800"/>
 *Analysis Result showing GO verdict with Expected Δ¥: +¥133,177, CAS Score: 0.15*
 
-![S0 vs S1 Comparison](Picture/Screenshot%20from%202025-11-27 16-40-16.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-40-16.png" alt="S0 vs S1 Comparison" width="800"/>
 *Baseline (S0) vs Treatment (S1) scenario comparison*
 
 **Purpose**: Upload data, configure causal design, run analysis, get GO/CANARY/HOLD verdict.
@@ -172,49 +136,49 @@ flowchart TD
 
 **Screenshots:**
 
-![Diagnostics Overview](Picture/Screenshot%20from%202025-11-27 16-40-49.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-40-49.png" alt="Diagnostics Overview" width="800"/>
 *Diagnostics & Audit page with CAS Score 0.15 (LOW quality)*
 
-![Quality Indicators](Picture/Screenshot%20from%202025-11-27 16-41-00.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-41-00.png" alt="Quality Indicators" width="800"/>
 *Key Quality Indicators: Data Quality (SMD 2.541), Statistical Power, Effect Reliability, Model Performance*
 
-![Overlap Diagnostics](Picture/Screenshot%20from%202025-11-27 16-41-31.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-41-31.png" alt="Overlap Diagnostics" width="800"/>
 *Overlap/Positivity Diagnostics with Propensity Score Distribution*
 
-![Common Support Region](Picture/Screenshot%20from%202025-11-27 16-41-50.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-41-50.png" alt="Common Support Region" width="800"/>
 *Common Support Region showing overlap between treatment and control groups*
 
-![Balance Diagnostics](Picture/Screenshot%20from%202025-11-27 16-42-09.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-42-09.png" alt="Balance Diagnostics" width="800"/>
 *Covariate Balance Diagnostics with Max SMD: 2.541, Balanced Covariates: 8/8*
 
-![Love Plot](Picture/Screenshot%20from%202025-11-27 16-42-22.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-42-22.png" alt="Love Plot" width="800"/>
 *Love Plot showing Standardized Mean Differences before/after matching*
 
-![Sensitivity Analysis](Picture/Screenshot%20from%202025-11-27 16-42-39.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-42-39.png" alt="Sensitivity Analysis" width="800"/>
 *Sensitivity Analysis with Critical Γ: 1.00, E-value: 265.85, Robustness: MODERATE*
 
-![Rosenbaum Bounds](Picture/Screenshot%20from%202025-11-27 16-42-52.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-42-52.png" alt="Rosenbaum Bounds" width="800"/>
 *Rosenbaum Bounds (Γ Sensitivity) showing p-value changes with unmeasured confounding*
 
-![Refutation Tests 1](Picture/Screenshot%20from%202025-11-27 16-43-21.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-43-21.png" alt="Refutation Tests 1" width="800"/>
 *Refutation Tests: Placebo Test (PASSED), Random Common Cause (PASSED), Data Subset Validation (PASSED)*
 
-![Placebo Outcome Test](Picture/Screenshot%20from%202025-11-27 16-43-31.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-43-31.png" alt="Placebo Outcome Test" width="800"/>
 *Placebo Outcome Test showing no spurious effects*
 
-![Data Subset Robustness](Picture/Screenshot%20from%202025-11-27 16-44-14.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-44-14.png" alt="Data Subset Robustness" width="800"/>
 *Treatment Effect Robustness Across Data Subsets (10 random samples)*
 
-![Advanced Diagnostics](Picture/Screenshot%20from%202025-11-27 16-44-41.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-44-41.png" alt="Advanced Diagnostics" width="800"/>
 *Advanced diagnostics: Network Spillover (PASSED), Temporal Interference (PASSED), Effect Heterogeneity (DETECTED)*
 
-![Effect Heterogeneity](Picture/Screenshot%20from%202025-11-27 16-44-52.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-44-52.png" alt="Effect Heterogeneity" width="800"/>
 *Treatment Effect Heterogeneity by Subgroup - younger age groups show stronger effects*
 
-![Temporal Stability](Picture/Screenshot%20from%202025-11-27 16-45-11.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-45-11.png" alt="Temporal Stability" width="800"/>
 *Treatment Effect Temporal Stability - effect remains stable over 12-month period*
 
-![Diagnostics Summary](Picture/Screenshot%20from%202025-11-27 16-45-41.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-45-41.png" alt="Diagnostics Summary" width="800"/>
 *Advanced Diagnostics Summary with actionable recommendations*
 
 **Purpose**: Deep-dive quality assurance for analysts to verify causal assumptions.
@@ -232,7 +196,7 @@ flowchart TD
 
 **Screenshot:**
 
-![Decision Console](Picture/Screenshot%20from%202025-11-27 16-46-06.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-46-06.png" alt="Decision Console" width="800"/>
 *Decision Console with KPIs (Total Δ¥, Avg Δ¥/Policy, Mean CAS, CVaR), Δ¥ Trend chart, Segment Portfolio, Channel Performance, Decision Cards table*
 
 **Purpose**: Executive dashboard showing cumulative Δ¥, verdicts, and ROI trends.
@@ -249,10 +213,10 @@ flowchart TD
 
 **Screenshots:**
 
-![Experiment Studio](Picture/Screenshot%20from%202025-11-27 16-46-36.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-46-36.png" alt="Experiment Studio" width="800"/>
 *Multi-Arm Experiment Setup: select dataset, treatment/outcome columns, define arms (Control, Variant A)*
 
-![Offline Analysis](Picture/Screenshot%20from%202025-11-27 16-47-04.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-04.png" alt="Offline Analysis" width="800"/>
 *Offline Analysis (Multi-Arm) - JSON payload with feature matrix X, treatment T, outcome Y, plus analysis results table*
 
 **Purpose**: Orchestrate online experiments and analyze multi-arm offline data.
@@ -268,7 +232,7 @@ flowchart TD
 
 **Screenshot:**
 
-![Growth Studio](Picture/Screenshot%20from%202025-11-27 16-47-20.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-20.png" alt="Growth Studio" width="800"/>
 *Growth & LTV Studio with CLV Summary: CLV (Treated) ¥275.27, CLV (Control) ¥118.81, Δ CLV ¥156.46*
 
 **Purpose**: Run CLV, cohort, and retention analyses using Survival + Discount approach.
@@ -279,16 +243,16 @@ flowchart TD
 
 **Screenshots:**
 
-![Governance Data & Sensitivity](Picture/Screenshot%20from%202025-11-27 16-47-37.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-37.png" alt="Governance Data & Sensitivity" width="800"/>
 *Governance Center: Data & Sensitivity form with Fairness Threshold, Min Samples, Sensitive Attributes, Uplift Data JSON, Check Fairness and Check Data Quality buttons*
 
-![Data Quality Warnings](Picture/Screenshot%20from%202025-11-27 16-47-53.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-53.png" alt="Data Quality Warnings" width="800"/>
 *Data Quality Warnings table showing rule violations (data_quality_sample_size: actual=4, required=100)*
 
-![Compliance Frequency Cap](Picture/Screenshot%20from%202025-11-27 16-48-07.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-48-07.png" alt="Compliance Frequency Cap" width="800"/>
 *Compliance (Frequency Cap) form with User Exposure JSON, Max Frequency Cap (10), and Check Compliance button*
 
-![Quality Gates Overview](Picture/Screenshot%20from%202025-11-27 16-48-28.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-48-28.png" alt="Quality Gates Overview" width="800"/>
 *Quality Gates Overview table: Fairness Uplift Disparity (fairness, high severity, review, threshold 1000), Data Quality Gate (data_quality, medium, warn, 100), Compliance Frequency Cap (compliance, critical, block, 10)*
 
 **Purpose**: Ensure fairness, quality, and compliance before deploying policies.
@@ -305,10 +269,10 @@ flowchart TD
 
 **Screenshots:**
 
-![Custom Scenario Builder](Picture/Screenshot%20from%202025-11-27 16-48-45.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-48-45.png" alt="Custom Scenario Builder" width="800"/>
 *Policy Lab - Custom Scenario Builder with Contact Frequency slider, Discount Rate slider, Budget Cap slider, Communication Channels (Email, SMS, Push, LINE, In-App, Direct Mail)*
 
-![Target Segment Builder](Picture/Screenshot%20from%202025-11-27 16-49-51.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-49-51.png" alt="Target Segment Builder" width="800"/>
 *Target Segment Builder with GUI Builder and SQL Editor tabs, Example Target Segments (High-Value Dormant Users, Weekend Shoppers in Major Cities, Mobile App Power Users, Cart Abandoners with High Intent)*
 
 **Purpose**: Design, evaluate, and simulate marketing policies before execution.
@@ -324,10 +288,10 @@ flowchart TD
 
 **Screenshots:**
 
-![Recommended Portfolio Strategy](Picture/Screenshot%20from%202025-11-27 16-50-28.png)
+<img src="Picture/Screenshot%20from%202025-11-27 16-50-28.png" alt="Recommended Portfolio Strategy" width="800"/>
 *Recommended Portfolio Strategy card: Expected Δ¥ +¥665,883, CAS Score 0.15 (Low Confidence), Risk Score 0.59 (Medium Risk), ROI 5.0x, with Decision Rationale and Recommendations bullets*
 
-![Pareto Frontier](Picture/Screenshot%20from%202025-11-27 17-59-03.png)
+<img src="Picture/Screenshot%20from%202025-11-27 17-59-03.png" alt="Pareto Frontier" width="800"/>
 *Pareto Frontier (Profit vs Risk) scatter plot showing CAS Quality (High/Med/Low) and Portfolio Contribution ranking (top 5 policies)*
 
 **Purpose**: Optimize policy portfolio on Pareto frontier (Profit vs Risk vs CAS).
@@ -352,37 +316,37 @@ flowchart TD
 ```mermaid
 graph TB
     subgraph "🎨 User Interface"
-        DC[Decision Console<br/>━━━━━━━━━━<br/>• Δ¥ Summary Dashboard<br/>• Go/Canary/Hold Verdicts<br/>• Profit Impact Visualization<br/> <br/> <br/> ]
-        CD[Causal Design<br/>━━━━━━━━━━<br/>• CSV Upload Interface<br/>• Estimator Selection<br/>• Real-time Analysis Progress<br/> <br/> <br/> ]
-        PL[Policy Lab<br/>━━━━━━━━━━<br/>• Custom Scenario Builder<br/>• S0 vs S1 Comparison<br/>• SQL-based Segmentation<br/> <br/> <br/> ]
-        PO[Portfolio Optimization<br/>━━━━━━━━━━<br/>• 3D Pareto Frontier<br/>• Risk-Return Analysis<br/>• Multi-objective Optimization<br/> <br/> <br/> ]
+        DC[Decision Console<br/>━━━━━━━━━━<br/>• Δ¥ Summary Dashboard<br/>• Go/Canary/Hold Verdicts<br/>• Profit Impact Visualization<br/> <br/> <br/> <br/> <br/> ]
+        CD[Causal Design<br/>━━━━━━━━━━<br/>• CSV Upload Interface<br/>• Estimator Selection<br/>• Real-time Analysis Progress<br/> <br/> <br/> <br/> <br/> ]
+        PL[Policy Lab<br/>━━━━━━━━━━<br/>• Custom Scenario Builder<br/>• S0 vs S1 Comparison<br/>• SQL-based Segmentation<br/> <br/> <br/> <br/> <br/> ]
+        PO[Portfolio Optimization<br/>━━━━━━━━━━<br/>• 3D Pareto Frontier<br/>• Risk-Return Analysis<br/>• Multi-objective Optimization<br/> <br/> <br/> <br/> <br/> ]
     end
 
     subgraph "🔬 Causal Inference Engine"
-        DR[DR-Learner<br/>Doubly Robust<br/> <br/> <br/> ]
-        IPW[IPW<br/>Propensity Weighting<br/> <br/> <br/> ]
-        DiD[DiD<br/>Time-Series<br/> <br/> <br/> ]
-        IV[IV<br/>Instrumental Variables<br/> <br/> <br/> ]
-        CF[Causal Forest<br/>CATE Estimation<br/> <br/> <br/> ]
-        SCM[Synthetic Control<br/>Aggregate-Level<br/> <br/> <br/> ]
-        RD[Regression Discontinuity<br/>Threshold Policies<br/> <br/> <br/> ]
+        DR[DR-Learner<br/>Doubly Robust<br/> <br/> <br/> <br/> <br/> ]
+        IPW[IPW<br/>Propensity Weighting<br/> <br/> <br/> <br/> <br/> ]
+        DiD[DiD<br/>Time-Series<br/> <br/> <br/> <br/> <br/> ]
+        IV[IV<br/>Instrumental Variables<br/> <br/> <br/> <br/> <br/> ]
+        CF[Causal Forest<br/>CATE Estimation<br/> <br/> <br/> <br/> <br/> ]
+        SCM[Synthetic Control<br/>Aggregate-Level<br/> <br/> <br/> <br/> <br/> ]
+        RD[Regression Discontinuity<br/>Threshold Policies<br/> <br/> <br/> <br/> <br/> ]
     end
 
     subgraph "💾 Data Infrastructure"
-        PG[(PostgreSQL 15<br/>+ TimescaleDB<br/>+ Row-Level Security<br/> <br/> <br/> )]
-        Redis[(Redis 7<br/>Cache & Queue<br/> <br/> <br/> )]
-        S3[(S3/MinIO<br/>Datasets & Models<br/> <br/> <br/> )]
+        PG[(PostgreSQL 15<br/>+ TimescaleDB<br/>+ Row-Level Security<br/> <br/> <br/> <br/> <br/> )]
+        Redis[(Redis 7<br/>Cache & Queue<br/> <br/> <br/> <br/> <br/> )]
+        S3[(S3/MinIO<br/>Datasets & Models<br/> <br/> <br/> <br/> <br/> )]
     end
 
     subgraph "⚙️ Distributed Computing"
-        Celery[Celery Workers<br/>ML Task Processing<br/> <br/> <br/> ]
-        RabbitMQ[RabbitMQ<br/>Message Broker<br/> <br/> <br/> ]
+        Celery[Celery Workers<br/>ML Task Processing<br/> <br/> <br/> <br/> <br/> ]
+        RabbitMQ[RabbitMQ<br/>Message Broker<br/> <br/> <br/> <br/> <br/> ]
     end
 
     subgraph "📈 Observability"
-        Prom[Prometheus<br/>Metrics<br/> <br/> <br/> ]
-        Graf[Grafana<br/>Dashboards<br/> <br/> <br/> ]
-        OTel[OpenTelemetry<br/>Tracing<br/> <br/> <br/> ]
+        Prom[Prometheus<br/>Metrics<br/> <br/> <br/> <br/> <br/> ]
+        Graf[Grafana<br/>Dashboards<br/> <br/> <br/> <br/> <br/> ]
+        OTel[OpenTelemetry<br/>Tracing<br/> <br/> <br/> <br/> <br/> ]
     end
 
     DC & CD & PL & PO --> DR & IPW & DiD & IV & CF & SCM & RD
@@ -548,9 +512,16 @@ DR/IPW       DiD         IV         CF         SCM        RD
 
 #### 1. Doubly Robust (DR-Learner)
 
-**Use Case**: General-purpose causal inference from observational data
+**Use Case**: General-purpose causal inference from observational data where you cannot run a randomized experiment
 
-**Problem Solved**: Selection bias (treated vs control groups differ systematically)
+**When to use:**
+- Marketing campaigns where certain customer segments are more likely to receive treatment (e.g., high-value customers get special offers)
+- Product feature rollouts that are not randomly assigned
+- Any scenario where treatment assignment depends on customer characteristics
+
+**Problem Solved**: Selection bias - When treated and control groups differ systematically in ways that affect outcomes
+
+**Why it matters:** If you simply compare treated vs control without adjustment, you'll confuse the treatment effect with pre-existing differences. For example, if you send emails only to engaged users, higher revenue might be due to their engagement, not the email itself.
 
 **Mathematical Formula**:
 ```
@@ -572,9 +543,16 @@ where:
 
 #### 2. Inverse Propensity Weighting (IPW)
 
-**Use Case**: Non-randomized treatment assignment with strong selection bias
+**Use Case**: Non-randomized treatment assignment where you have complete data on factors that determine who gets treated
 
-**Problem Solved**: Creates "pseudo-randomization" via reweighting
+**When to use:**
+- Win-back campaigns targeting only churned customers
+- VIP programs where eligibility is based on observable criteria (spending, tenure, engagement)
+- Targeted interventions where treatment rules are known (e.g., "send discount if cart value < $50")
+
+**Problem Solved**: Creates "pseudo-randomization" by reweighting observations to balance treatment and control groups
+
+**Why it matters:** Without reweighting, comparing outcomes would be like comparing apples and oranges. IPW makes the comparison fair by giving more weight to underrepresented groups and less weight to overrepresented groups, effectively simulating a randomized trial.
 
 **Mathematical Formula**:
 ```
@@ -593,9 +571,17 @@ Interpretation: Upweight under-represented samples, downweight over-represented 
 
 #### 3. Difference-in-Differences (DiD)
 
-**Use Case**: Time-series data with pre/post intervention periods
+**Use Case**: Interventions rolled out at specific times, with before/after data for both treated and untreated groups
 
-**Problem Solved**: Time-invariant confounders (e.g., seasonal effects)
+**When to use:**
+- Regional marketing campaigns (e.g., TV ads in Tokyo but not Osaka)
+- Feature launches in specific markets before global rollout
+- Policy changes that affect some segments but not others at a specific time
+- Any intervention where you have pre-treatment baseline data
+
+**Problem Solved**: Separates true treatment effects from time trends and seasonal patterns that affect everyone
+
+**Why it matters:** Revenue might increase after your campaign simply because it's holiday season, not because of the campaign itself. DiD isolates the campaign effect by comparing how much the treated group changed vs how much the control group changed over the same period.
 
 **Mathematical Formula**:
 ```
@@ -614,9 +600,17 @@ Assumption: Parallel trends (control group shows what would've happened to treat
 
 #### 4. Instrumental Variables (IV)
 
-**Use Case**: Endogeneity (reverse causality, omitted variables)
+**Use Case**: When the relationship between treatment and outcome has reverse causality or hidden confounders that you cannot measure
 
-**Problem Solved**: Finds exogenous variation to isolate causal effect
+**When to use:**
+- Measuring impact of app usage on purchases (problem: purchases also increase app usage - reverse causality)
+- Effect of customer service calls on satisfaction (problem: dissatisfied customers call more - reverse causality)
+- Impact of reading emails on engagement (problem: engaged users read more emails - confounding)
+- Any scenario where X affects Y but Y also affects X
+
+**Problem Solved**: Uses an external "instrument" (a variable that affects treatment but not outcome directly) to isolate the true causal effect
+
+**Why it matters:** Without IV, you cannot tell if X causes Y or Y causes X. For example, does app usage increase purchases, or do purchases drive app usage? IV finds a source of variation in X that is unrelated to Y (like random push notifications) to answer this question definitively.
 
 **Mathematical Formula**:
 ```
@@ -639,9 +633,17 @@ Requirements for valid instrument Z:
 
 #### 5. Causal Forest
 
-**Use Case**: Heterogeneous treatment effects - "which customers benefit most?"
+**Use Case**: When treatment effects vary dramatically across customer segments and you want to personalize decisions
 
-**Problem Solved**: Conditional Average Treatment Effect (CATE) estimation
+**When to use:**
+- Personalized discount strategies (some customers increase spending with discounts, others just use discounts without changing behavior)
+- Identifying which customer segments benefit most from a new feature
+- Optimizing marketing spend by targeting high-impact segments
+- Any scenario where you suspect "one size fits all" is leaving money on the table
+
+**Problem Solved**: Estimates treatment effects for every customer segment (CATE: Conditional Average Treatment Effect)
+
+**Why it matters:** The average treatment effect might be positive, but that hides the fact that the treatment works great for some customers and backfires for others. Causal Forest reveals who benefits and who doesn't, enabling precise targeting instead of blanket campaigns.
 
 **Mathematical Formula**:
 ```
@@ -663,9 +665,18 @@ Algorithm: Random forest that maximizes treatment effect heterogeneity across le
 
 #### 6. Synthetic Control Method (SCM)
 
-**Use Case**: Aggregate-level interventions (geographic, store-level)
+**Use Case**: One-off interventions affecting an entire unit (city, store, product) where no natural control group exists
 
-**Problem Solved**: No control group exists (single treated unit)
+**When to use:**
+- Opening a new flagship store in a major city
+- Launching a new product line nationally
+- Major brand campaigns affecting entire regions
+- Policy changes affecting specific markets
+- Any intervention where you can't randomize at the unit level
+
+**Problem Solved**: Creates a synthetic control group by combining other similar units to match the treated unit's pre-intervention trajectory
+
+**Why it matters:** When you can't find a perfect control (e.g., there's no city identical to Tokyo), SCM creates a "synthetic Tokyo" by combining weighted data from Osaka, Nagoya, and Fukuoka to match Tokyo's pre-treatment trends. This allows causal inference even with a single treated unit.
 
 **Mathematical Formula**:
 ```
@@ -686,9 +697,18 @@ Find weights w that best match pre-intervention trends
 
 #### 7. Regression Discontinuity (RD)
 
-**Use Case**: Threshold-based policies (e.g., "VIP if spending > $10k")
+**Use Case**: Policies with sharp eligibility cutoffs based on a continuous variable (spending, age, score, etc.)
 
-**Problem Solved**: Local randomization at cutoff point
+**When to use:**
+- VIP programs with spending thresholds (e.g., "Gold tier at ¥500k annual spending")
+- Credit limits based on credit scores (e.g., "approved if score > 700")
+- Loyalty rewards triggered at specific milestones (e.g., "free shipping after 10 orders")
+- Age-based targeting (e.g., "senior discount at 65+")
+- Any rule-based policy with a clear threshold
+
+**Problem Solved**: Exploits "quasi-randomization" at the threshold - customers just above and just below are virtually identical except for treatment
+
+**Why it matters:** Customers who spent ¥495k and ¥505k are nearly identical in every way except the latter crossed the VIP threshold. By comparing outcomes in this narrow band around the cutoff, RD estimates the causal effect of VIP benefits without needing a randomized experiment.
 
 **Mathematical Formula**:
 ```
