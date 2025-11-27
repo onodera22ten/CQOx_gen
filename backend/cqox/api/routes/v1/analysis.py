@@ -6,10 +6,11 @@ v1 Analysis API Routes
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict, Any
 import uuid as uuid_lib
 from datetime import datetime
 import logging
+import json
 from pydantic import BaseModel, Field
 
 from cqox.database.connection import get_db
@@ -23,22 +24,30 @@ DEFAULT_TENANT_ID = uuid_lib.UUID("00000000-0000-0000-0000-000000000001")
 
 
 def _parse_uuid(value: str, field: str) -> uuid_lib.UUID:
+    """Parse UUID with enhanced error handling"""
     try:
+        # Strip whitespace and validate
+        value = str(value).strip()
+        logger.info(f"Parsing {field}: {value}")
         return uuid_lib.UUID(value)
-    except (ValueError, TypeError):
-        raise HTTPException(status_code=400, detail=f"Invalid {field} UUID")
+    except (ValueError, TypeError) as e:
+        logger.error(f"Failed to parse {field} UUID: {value} - {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {field} format. Expected UUID, got: {value[:50]}"
+        )
 
 
 # Request/Response Models
 class AnalysisRequest(BaseModel):
     """因果推論分析リクエスト"""
     dataset_id: str = Field(..., description="Dataset ID")
-    policy_id: str = Field(..., description="Policy ID")
+    policy_id: str | None = Field(None, description="Policy ID (optional)")
     
-    # Estimator selection
-    estimators: List[Literal["DR", "IPW", "DiD", "IV", "CF", "SCM", "RD"]] = Field(
-        ["DR", "IPW"],
-        description="使用する推定器"
+    # Estimator selection (flexible to accept various formats)
+    estimators: List[str] = Field(
+        default=["DR", "IPW"],
+        description="使用する推定器 (DR, IPW, DiD, IV, CF, SCM, RD)"
     )
     
     # Treatment/Outcome specification
@@ -46,8 +55,8 @@ class AnalysisRequest(BaseModel):
     outcome_col: str = Field(..., description="Outcome column name")
     feature_cols: List[str] = Field(..., description="Feature columns")
     
-    # Scenario comparison
-    scenario_spec: dict = Field(..., description="S0 vs S1 scenario definition")
+    # Scenario comparison (optional for now)
+    scenario_spec: dict = Field(default_factory=dict, description="S0 vs S1 scenario definition")
     
     # Options
     bootstrap_iterations: int = Field(1000, ge=100, le=10000)
@@ -74,6 +83,51 @@ class AnalysisStatus(BaseModel):
     
     # Error (if failed)
     error_message: Optional[str] = None
+    error_code: Optional[str] = None
+    error_details: Optional[Dict[str, Any]] = None
+
+
+class AnalysisDetails(BaseModel):
+    analysis: AnalysisStatus
+    diagnostics: Optional[Dict[str, Any]] = None
+    impact_metrics: Optional[Dict[str, Any]] = None
+    estimator_results: Optional[Dict[str, Any]] = None
+
+
+def _decode_error_message(raw_message: Optional[str]) -> Dict[str, Any]:
+    if not raw_message:
+        return {"message": None, "code": None, "details": None}
+    try:
+        payload = json.loads(raw_message)
+        if isinstance(payload, dict):
+            return {
+                "message": payload.get("message"),
+                "code": payload.get("code"),
+                "details": payload.get("details")
+            }
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return {"message": raw_message, "code": None, "details": None}
+
+
+def _build_analysis_status_from_run(analysis: "AnalysisRun") -> AnalysisStatus:
+    error_payload = _decode_error_message(analysis.error_message)
+    return AnalysisStatus(
+        analysis_id=str(analysis.id),
+        policy_id=str(analysis.policy_id),
+        dataset_id=str(analysis.dataset_id),
+        status=analysis.status,
+        progress=analysis.progress or 0.0,
+        delta_yen=analysis.delta_yen,
+        delta_yen_ci_low=analysis.delta_yen_ci_low,
+        delta_yen_ci_high=analysis.delta_yen_ci_high,
+        verdict=analysis.verdict,
+        started_at=analysis.started_at,
+        completed_at=analysis.completed_at,
+        error_message=error_payload["message"],
+        error_code=error_payload["code"],
+        error_details=error_payload["details"]
+    )
 
 
 @router.post("/run", response_model=AnalysisStatus, status_code=202)
@@ -95,11 +149,29 @@ async def start_analysis(
     
     **非同期実行**: Celeryタスクで実行
     """
-    from cqox.database.models import AnalysisRun
+    from cqox.database.models import AnalysisRun, Policy
     
     analysis_uuid = uuid_lib.uuid4()
-    policy_uuid = _parse_uuid(request.policy_id, "policy_id")
-    dataset_uuid = _parse_uuid(request.dataset_id, "dataset_id")
+    
+    # DEBUG: Log request details
+    logger.info(f"[DEBUG] Received request: dataset_id={request.dataset_id} (type: {type(request.dataset_id)}), policy_id={request.policy_id}")
+    logger.info(f"Starting analysis - dataset_id: {request.dataset_id}, policy_id: {request.policy_id}")
+    
+    try:
+        policy_uuid = _parse_uuid(request.policy_id, "policy_id") if request.policy_id else None
+        dataset_uuid = _parse_uuid(request.dataset_id, "dataset_id")
+    except HTTPException as e:
+        logger.error(f"UUID parsing failed: {e.detail}")
+        raise
+    
+    # Validate policy exists (if provided). If not, drop the reference to keep FK happy.
+    if policy_uuid:
+        policy_exists = await db.execute(
+            select(Policy.id).where(Policy.id == policy_uuid)
+        )
+        if not policy_exists.scalar_one_or_none():
+            logger.warning(f"[DEBUG] Policy {policy_uuid} not found. Clearing policy reference for analysis.")
+            policy_uuid = None
     
     # Get tenant_id from current_user or use default
     tenant_id_raw = current_user.get("tenant_id", None)
@@ -210,19 +282,46 @@ async def get_analysis_status(
     if not analysis:
         raise HTTPException(status_code=404, detail="Analysis not found")
     
-    return AnalysisStatus(
-        analysis_id=str(analysis.id),
-        policy_id=str(analysis.policy_id),
-        dataset_id=str(analysis.dataset_id),
-        status=analysis.status,
-        progress=analysis.progress or 0.0,
-        delta_yen=analysis.delta_yen,
-        delta_yen_ci_low=analysis.delta_yen_ci_low,
-        delta_yen_ci_high=analysis.delta_yen_ci_high,
-        verdict=analysis.verdict,
-        started_at=analysis.started_at,
-        completed_at=analysis.completed_at,
-        error_message=analysis.error_message
+    return _build_analysis_status_from_run(analysis)
+
+
+@router.get("/{analysis_id}/details", response_model=AnalysisDetails)
+async def get_analysis_details(
+    analysis_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get analysis status along with diagnostics snapshot and impact metrics"""
+    from cqox.database.models import AnalysisRun
+
+    tenant_id_raw = current_user.get("tenant_id", None)
+    if tenant_id_raw is None:
+        tenant_uuid = DEFAULT_TENANT_ID
+    elif isinstance(tenant_id_raw, uuid_lib.UUID):
+        tenant_uuid = tenant_id_raw
+    else:
+        tenant_uuid = _parse_uuid(str(tenant_id_raw), "tenant_id")
+
+    analysis_uuid = _parse_uuid(analysis_id, "analysis_id")
+
+    result = await db.execute(
+        select(AnalysisRun).where(
+            AnalysisRun.id == analysis_uuid,
+            AnalysisRun.tenant_id == tenant_uuid
+        )
+    )
+    analysis = result.scalar_one_or_none()
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    analysis_payload = _build_analysis_status_from_run(analysis)
+
+    return AnalysisDetails(
+        analysis=analysis_payload,
+        diagnostics=analysis.diagnostics_snapshot,
+        impact_metrics=analysis.impact_metrics,
+        estimator_results=analysis.estimator_results
     )
 
 
@@ -251,8 +350,14 @@ async def list_analyses(
     
     if status:
         query = query.where(AnalysisRun.status == status)
+    
     if policy_id:
-        query = query.where(AnalysisRun.policy_id == policy_id)
+        try:
+            policy_uuid = _parse_uuid(policy_id, "policy_id")
+            query = query.where(AnalysisRun.policy_id == policy_uuid)
+        except HTTPException as e:
+            logger.warning(f"Invalid policy_id filter: {policy_id}, ignoring")
+            # Ignore invalid policy_id filter instead of raising error
     
     offset = (page - 1) * page_size
     query = query.order_by(desc(AnalysisRun.started_at)).limit(page_size).offset(offset)
@@ -260,23 +365,7 @@ async def list_analyses(
     result = await db.execute(query)
     analyses = result.scalars().all()
     
-    return [
-        AnalysisStatus(
-            analysis_id=str(a.id),
-            policy_id=str(a.policy_id),
-            dataset_id=str(a.dataset_id),
-            status=a.status,
-            progress=a.progress or 0.0,
-            delta_yen=a.delta_yen,
-            delta_yen_ci_low=a.delta_yen_ci_low,
-            delta_yen_ci_high=a.delta_yen_ci_high,
-            verdict=a.verdict,
-            started_at=a.started_at,
-            completed_at=a.completed_at,
-            error_message=a.error_message
-        )
-        for a in analyses
-    ]
+    return [_build_analysis_status_from_run(a) for a in analyses]
 
 
 @router.delete("/{analysis_id}", status_code=204)
@@ -325,4 +414,3 @@ async def cancel_analysis(
     
     logger.info(f"Analysis cancelled: {analysis_id}")
     return None
-

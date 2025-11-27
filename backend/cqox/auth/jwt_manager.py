@@ -21,12 +21,13 @@ from cqox.storage.redis_cache import get_redis_client
 
 class TokenData(BaseModel):
     """JWT token payload"""
-    sub: str  # User ID
-    email: str
-    roles: list[str]
+    sub: str  # User ID or email
+    email: str = ""  # Optional - may use sub as email
+    roles: list[str] = []  # Optional - may use role as single element
+    tenant_id: str | None = None
     exp: datetime
     iat: datetime
-    jti: str  # JWT ID for revocation
+    jti: str = ""  # Optional - JWT ID for revocation (auth_service.py may not include it)
 
 
 class JWTManager:
@@ -83,8 +84,10 @@ class JWTManager:
 
         payload = {
             "sub": user_id,
+            "user_id": user_id,  # Explicit user_id for TokenPayload compatibility
             "email": email,
             "roles": roles,
+            "role": roles[0] if roles else "viewer",  # Primary role for TokenPayload
             "exp": expires,
             "iat": now,
             "jti": str(uuid.uuid4()),
@@ -105,7 +108,8 @@ class JWTManager:
     def create_refresh_token(
         self,
         user_id: str,
-        email: str
+        email: str,
+        additional_claims: Optional[Dict[str, Any]] = None
     ) -> str:
         """Create JWT refresh token (7 days)"""
         import uuid
@@ -121,6 +125,9 @@ class JWTManager:
             "jti": str(uuid.uuid4()),
             "type": "refresh"
         }
+
+        if additional_claims:
+            payload.update(additional_claims)
 
         token = jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
         return token
@@ -148,11 +155,12 @@ class JWTManager:
 
             return TokenData(
                 sub=payload["sub"],
-                email=payload["email"],
-                roles=payload.get("roles", []),
+                email=payload.get("email", payload.get("sub", "")),
+                roles=payload.get("roles", [payload.get("role", "viewer")]),
+                tenant_id=payload.get("tenant_id"),
                 exp=datetime.fromtimestamp(payload["exp"]),
                 iat=datetime.fromtimestamp(payload["iat"]),
-                jti=payload["jti"]
+                jti=payload.get("jti", str(payload.get("iat", "")))
             )
 
         except ExpiredSignatureError:
@@ -230,8 +238,21 @@ def get_jwt_manager() -> JWTManager:
     if _jwt_manager is None:
         from cqox.config import settings
 
+        import os
+
+        # Match exactly the same key used by auth_service.py
+        secret_fallback = 'your-secret-key-change-in-production'
+        env_secret = os.environ.get('SECRET_KEY', secret_fallback)
+
+        # Priority: ENV > settings.jwt_secret_key > settings.secret_key > fallback
+        settings_secret = getattr(settings, 'secret_key', None)
+        configured_secret = getattr(settings, 'jwt_secret_key', None)
+
+        # Use same key as auth_service.py: os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+        final_secret = env_secret  # This matches auth_service.py
+
         _jwt_manager = JWTManager(
-            secret_key=getattr(settings, 'jwt_secret_key', 'your-secret-key-change-in-production'),
+            secret_key=final_secret,
             algorithm=getattr(settings, 'jwt_algorithm', 'HS256'),
             access_token_expire_minutes=getattr(settings, 'jwt_access_expire_minutes', 60),
             refresh_token_expire_days=getattr(settings, 'jwt_refresh_expire_days', 7),

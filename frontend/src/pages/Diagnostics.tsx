@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import {
   LineChart,
   Line,
@@ -19,25 +20,7 @@ import VisualizationCard from '../components/visualizations/VisualizationCard'
 import QiniCurveChart from '../components/visualizations/QiniCurveChart'
 import CalibrationPlotChart from '../components/visualizations/CalibrationPlotChart'
 import CATEDistributionChart from '../components/visualizations/CATEDistributionChart'
-
-// Types
-interface DiagnosticCheck {
-  type: string
-  name: string
-  passed: boolean
-  score?: number
-  threshold?: number
-  data?: any
-}
-
-interface DiagnosticsData {
-  status: string
-  cas_score: number
-  quality_level: string
-  diagnostics: DiagnosticCheck[]
-  recommendations?: string[]
-  total_checks: number
-}
+import { analysisAPI, DiagnosticsData, DiagnosticCheck } from '../api/v1/analysis'
 
 // Mock data generator functions
 const generateMockOverlapData = () => {
@@ -86,42 +69,29 @@ const generateMockSensitivityData = () => {
 export default function Diagnostics() {
   const [activeTab, setActiveTab] = useState<'overview' | 'overlap' | 'balance' | 'sensitivity' | 'cate' | 'refutation' | 'advanced'>('overview')
   const [viewMode, setViewMode] = useState<'viewer' | 'analyst'>('analyst')
+  const [searchParams] = useSearchParams()
+  const analysisId = searchParams.get('analysis_id')
 
   // Fetch diagnostics data from API
-  const { data, isLoading, error } = useQuery<DiagnosticsData>({
-    queryKey: ['diagnostics'],
+  const { data, isLoading, error } = useQuery<DiagnosticsData | null>({
+    queryKey: ['diagnostics', analysisId],
     queryFn: async () => {
-      // Mock response matching API structure
-      return {
-        status: 'completed',
-        cas_score: 0.85,
-        quality_level: 'HIGH',
-        total_checks: 14,
-        diagnostics: [
-          { type: 'covariate_balance', name: 'Covariate Balance (SMD)', passed: true, score: 0.08, threshold: 0.1 },
-          { type: 'love_plot', name: 'Love Plot', passed: true },
-          { type: 'overlap', name: 'Overlap / Positivity', passed: true, score: 0.02, threshold: 0.05 },
-          { type: 'propensity_density', name: 'Propensity Density', passed: true },
-          { type: 'sensitivity', name: 'Sensitivity (Γ)', passed: false, score: 1.5, threshold: 1.3 },
-          { type: 'e_value', name: 'E-value', passed: true, score: 2.1, threshold: 1.5 },
-          { type: 'qini_curve', name: 'Qini Curve', passed: true },
-          { type: 'calibration', name: 'CATE Calibration', passed: true, score: 0.82, threshold: 0.7 },
-          { type: 'heterogeneity', name: 'CATE Heterogeneity', passed: true },
-          { type: 'network_interference', name: 'Network Spillover', passed: true },
-          { type: 'temporal_interference', name: 'Temporal Interference', passed: true },
-          { type: 'placebo_test', name: 'Placebo Test', passed: true },
-          { type: 'refutation', name: 'Refutation Tests', passed: true },
-          { type: 'robustness', name: 'Robustness Checks', passed: true },
-        ],
-        recommendations: [
-          'Sensitivity analysis shows moderate robustness (Γ=1.5)',
-          'Consider additional covariate adjustment for X3',
-          'Overall causal estimate quality is HIGH'
-        ]
-      }
+      if (!analysisId) return null
+      const details = await analysisAPI.getDetails(analysisId)
+      return details.diagnostics ?? null
     },
+    enabled: !!analysisId,
     staleTime: 60000
   })
+
+  if (!analysisId) {
+    return (
+      <div style={{ textAlign: 'center', padding: '48px', color: '#94a3b8' }}>
+        <div style={{ fontSize: '32px', fontWeight: 600, marginBottom: '12px' }}>Diagnostics & Audit</div>
+        <div>分析結果を表示するには、Causal Design で分析を選択し「診断を表示」をクリックしてください。</div>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (

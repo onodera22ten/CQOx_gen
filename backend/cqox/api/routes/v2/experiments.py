@@ -1,639 +1,230 @@
-"""
-Experiment Design API - v2
-A/B testing, sample size calculation, and power analysis
-"""
-
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Optional
-import uuid
-import logging
-from datetime import datetime
-
-from cqox.models.v2 import (
-    ExperimentDesign,
-    ExperimentDesignRequest,
-    ExperimentResult,
-    ExperimentArm
-)
-from cqox.ml.experiment_design import (
-    SampleSizeCalculator,
-    PowerAnalyzer,
-    SequentialTesting,
-    ExperimentAnalyzer
-)
-from cqox.auth.dependencies import get_current_user, get_tenant_id
-from cqox.database.connection import get_db
+"""V2 Module B API - Experiment Orchestrator & Bandit"""
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-import json
+from typing import List, Dict, Any, Literal, Any
+from uuid import uuid4
+from pydantic import BaseModel
+import uuid as uuid_lib
 
-logger = logging.getLogger(__name__)
+from cqox.auth.dependencies import get_current_user
+from cqox.database.connection import get_db
+from cqox.engine.bandits.thompson import BernoulliThompsonBandit
 
-router = APIRouter(prefix="/experiments", tags=["experiments"])
+router = APIRouter()
+DEFAULT_TENANT_ID = uuid_lib.UUID("00000000-0000-0000-0000-000000000001")
+
+class ExperimentCreate(BaseModel):
+    experiment_name: str
+    target_metric: str
+    arms: List[str]
 
 
-@router.post("/design", response_model=ExperimentDesign, status_code=201)
-async def create_experiment_design(
-    request: ExperimentDesignRequest,
-    db: AsyncSession = Depends(get_db),
-    tenant_id: str = Depends(get_tenant_id),
-    current_user: dict = Depends(get_current_user)
-):
+class OrchestratorExperiment(BaseModel):
+    id: str
+    experiment_name: str
+    target_metric: str
+    status: str
+    created_at: str | None = None
+
+
+class AllocationResponse(BaseModel):
+    experiment_id: str
+    allocations: Dict[str, float]
+
+
+class OutcomeItem(BaseModel):
+    arm_id: str
+    reward: float
+
+
+class OutcomeUpdateRequest(BaseModel):
+    outcomes: List[OutcomeItem]
+    reward_type: Literal["binary", "continuous"] = "binary"
+
+
+BANDIT_TABLE_STATEMENTS = [
     """
-    Create an A/B test experiment design with sample size calculation
-
-    This endpoint designs an experiment by:
-    1. Validating treatment arms (must sum to 100% allocation)
-    2. Calculating required sample size based on:
-       - Outcome type (continuous or binary)
-       - Minimum detectable effect
-       - Desired power and significance level
-    3. Estimating runtime given current traffic
-
-    **Sample Size Formulas**:
-
-    For continuous outcomes (t-test):
-    ```
-    n = 2 * (z_α/2 + z_β)² * σ² / δ²
-    ```
-
-    For binary outcomes (proportion test):
-    ```
-    n = (z_α * √(p*(1-p)*(1+1/r)) + z_β * √(p1*(1-p1) + p2*(1-p2)/r))² / (p2-p1)²
-    ```
-
-    Where:
-    - z_α = critical value for significance level α
-    - z_β = critical value for power (1-β)
-    - σ = standard deviation
-    - δ = minimum detectable effect
-    - p1, p2 = proportions in control and treatment
-    - r = allocation ratio
-
-    Args:
-        request: Experiment design specification
-
-    Returns:
-        ExperimentDesign with calculated sample sizes
+    CREATE TABLE IF NOT EXISTS experiments (
+        id UUID PRIMARY KEY,
+        tenant_id UUID NOT NULL,
+        experiment_name VARCHAR(255) NOT NULL,
+        target_metric VARCHAR(255),
+        status VARCHAR(50) NOT NULL DEFAULT 'running',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_experiments_tenant_id ON experiments(tenant_id)",
     """
+    CREATE TABLE IF NOT EXISTS experiment_allocations (
+        id UUID PRIMARY KEY,
+        experiment_id UUID NOT NULL REFERENCES experiments(id) ON DELETE CASCADE,
+        arm_id VARCHAR(255) NOT NULL,
+        alpha FLOAT DEFAULT 1.0,
+        beta FLOAT DEFAULT 1.0,
+        allocation_rate FLOAT DEFAULT 0.0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS ix_experiment_allocations_experiment_id ON experiment_allocations(experiment_id)"
+]
+
+
+async def _ensure_bandit_tables(db: AsyncSession) -> None:
+    for stmt in BANDIT_TABLE_STATEMENTS:
+        await db.execute(text(stmt))
+    await db.commit()
+
+
+def _resolve_tenant_uuid(current_user: Any) -> uuid_lib.UUID:
+    if isinstance(current_user, dict):
+        tenant_candidate = current_user.get("tenant_id")
+    else:
+        tenant_candidate = getattr(current_user, "tenant_id", None)
+
+    if not tenant_candidate:
+        return DEFAULT_TENANT_ID
+
     try:
-        experiment_id = str(uuid.uuid4())
+        return uuid_lib.UUID(str(tenant_candidate))
+    except Exception:
+        return DEFAULT_TENANT_ID
 
-        # Validate arms
-        total_allocation = sum(arm.allocation for arm in request.arms)
-        if not (0.99 <= total_allocation <= 1.01):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Arm allocations must sum to 1.0, got {total_allocation}"
-            )
-
-        # Calculate sample size based on outcome type
-        if request.outcome_type == "continuous":
-            # Continuous outcome (t-test)
-            if request.baseline_mean is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="baseline_mean required for continuous outcomes"
-                )
-
-            # Estimate baseline_std from historical data or use heuristic
-            if request.dataset_id:
-                # In production, load from dataset and compute std
-                baseline_std = request.baseline_mean * 0.5  # Heuristic: CV = 0.5
-            else:
-                # Use heuristic
-                baseline_std = request.baseline_mean * 0.5
-
-            sample_size_result = SampleSizeCalculator.continuous_outcome(
-                baseline_mean=request.baseline_mean,
-                baseline_std=baseline_std,
-                minimum_detectable_effect=request.minimum_detectable_effect,
-                alpha=request.alpha,
-                power=request.power,
-                two_sided=True,
-                allocation_ratio=1.0
-            )
-
-        elif request.outcome_type == "binary":
-            # Binary outcome (proportion test)
-            if request.baseline_proportion is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="baseline_proportion required for binary outcomes"
-                )
-
-            sample_size_result = SampleSizeCalculator.binary_outcome(
-                baseline_proportion=request.baseline_proportion,
-                minimum_detectable_effect=request.minimum_detectable_effect,
-                alpha=request.alpha,
-                power=request.power,
-                two_sided=True,
-                allocation_ratio=1.0
-            )
-
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported outcome_type: {request.outcome_type}"
-            )
-
-        # Adjust for number of arms (if > 2, need Bonferroni correction)
-        n_arms = len(request.arms)
-        if n_arms > 2:
-            # Multi-arm: adjust sample size
-            # Bonferroni correction: alpha_adj = alpha / (n_arms - 1)
-            adjusted_alpha = request.alpha / (n_arms - 1)
-
-            if request.outcome_type == "continuous":
-                sample_size_result = SampleSizeCalculator.multi_arm(
-                    n_arms=n_arms,
-                    baseline_mean=request.baseline_mean,
-                    baseline_std=baseline_std,
-                    minimum_detectable_effect=request.minimum_detectable_effect,
-                    alpha=request.alpha,
-                    power=request.power,
-                    correction='bonferroni'
-                )
-            else:
-                # Re-calculate with adjusted alpha
-                sample_size_result = SampleSizeCalculator.binary_outcome(
-                    baseline_proportion=request.baseline_proportion,
-                    minimum_detectable_effect=request.minimum_detectable_effect,
-                    alpha=adjusted_alpha,
-                    power=request.power,
-                    two_sided=True,
-                    allocation_ratio=1.0
-                )
-
-        # Estimate runtime
-        # In production, fetch current_traffic_per_day from analytics
-        current_traffic_per_day = 1000  # Demo value
-
-        expected_runtime_days = ExperimentAnalyzer.estimate_runtime(
-            required_sample_size=sample_size_result.total_sample_size,
-            current_traffic_per_day=current_traffic_per_day,
-            allocation_to_experiment=1.0
-        )
-
-        # Store in database
-        tenant_uuid = uuid.UUID(tenant_id) if isinstance(tenant_id, str) else tenant_id
-        now = datetime.utcnow()
-        
-        arms_json = json.dumps([arm.dict() for arm in request.arms])
-        
+@router.post("", response_model=OrchestratorExperiment)
+async def create_experiment(
+    experiment: ExperimentCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    await _ensure_bandit_tables(db)
+    exp_id = str(uuid4())
+    tenant_uuid = _resolve_tenant_uuid(current_user)
+    await db.execute(
+        text("INSERT INTO experiments (id, tenant_id, experiment_name, target_metric, status) VALUES (:id, :tenant_id, :name, :metric, 'running')"),
+        {
+            "id": uuid_lib.UUID(exp_id),
+            "tenant_id": tenant_uuid,
+            "name": experiment.experiment_name,
+            "metric": experiment.target_metric
+        }
+    )
+    insert_allocation = text("""
+        INSERT INTO experiment_allocations (id, experiment_id, arm_id, allocation_rate)
+        VALUES (:id, :experiment_id, :arm_id, :allocation_rate)
+    """)
+    for arm in experiment.arms:
         await db.execute(
-            text("""
-                INSERT INTO experiment_designs (
-                    id, tenant_id, policy_id, name, description, outcome_type,
-                    outcome_variable, baseline_mean, baseline_std, baseline_proportion,
-                    minimum_detectable_effect, alpha, power, arms,
-                    sample_size_per_arm, total_sample_size, estimated_runtime_days,
-                    status, created_at, updated_at, created_by
-                )
-                VALUES (
-                    :id, :tenant_id, :policy_id, :name, :description, :outcome_type,
-                    :outcome_variable, :baseline_mean, :baseline_std, :baseline_proportion,
-                    :minimum_detectable_effect, :alpha, :power, :arms,
-                    :sample_size_per_arm, :total_sample_size, :estimated_runtime_days,
-                    :status, :created_at, :updated_at, :created_by
-                )
-            """),
+            insert_allocation,
             {
-                "id": uuid.UUID(experiment_id),
-                "tenant_id": tenant_uuid,
-                "policy_id": uuid.UUID(request.policy_config_id) if request.policy_config_id else None,
-                "name": request.name,
-                "description": request.description,
-                "outcome_type": request.outcome_type,
-                "outcome_variable": request.primary_outcome,
-                "baseline_mean": request.baseline_mean,
-                "baseline_std": baseline_std if request.outcome_type == "continuous" else None,
-                "baseline_proportion": request.baseline_proportion,
-                "minimum_detectable_effect": request.minimum_detectable_effect,
-                "alpha": request.alpha,
-                "power": request.power,
-                "arms": arms_json,
-                "sample_size_per_arm": sample_size_result.required_sample_size_per_arm,
-                "total_sample_size": sample_size_result.total_sample_size,
-                "estimated_runtime_days": expected_runtime_days,
-                "status": "design",
-                "created_at": now,
-                "updated_at": now,
-                "created_by": current_user.get("user_id")
+                "id": uuid_lib.uuid4(),
+                "experiment_id": uuid_lib.UUID(exp_id),
+                "arm_id": arm,
+                "allocation_rate": 1.0 / len(experiment.arms)
             }
         )
-        await db.commit()
-
-        # Create experiment design response
-        experiment = ExperimentDesign(
-            id=experiment_id,
-            tenant_id=tenant_id,
-            name=request.name,
-            description=request.description,
-            treatment_variable=request.treatment_variable,
-            arms=request.arms,
-            primary_outcome=request.primary_outcome,
-            outcome_type=request.outcome_type,
-            baseline_mean=request.baseline_mean,
-            baseline_proportion=request.baseline_proportion,
-            minimum_detectable_effect=request.minimum_detectable_effect,
-            alpha=request.alpha,
-            power=request.power,
-            required_sample_size_per_arm=sample_size_result.required_sample_size_per_arm,
-            total_sample_size=sample_size_result.total_sample_size,
-            expected_runtime_days=expected_runtime_days,
-            dataset_id=request.dataset_id,
-            policy_config_id=request.policy_config_id,
-            status="design",
-            created_at=now
-        )
-
-        logger.info(f"Created experiment design {experiment_id} for tenant {tenant_id}")
-        logger.info(f"Sample size: {sample_size_result.total_sample_size} "
-                   f"({sample_size_result.required_sample_size_per_arm} per arm)")
-        logger.info(f"Expected runtime: {expected_runtime_days:.1f} days")
-
-        return experiment
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error creating experiment design: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    await db.commit()
+    return OrchestratorExperiment(
+        id=exp_id,
+        experiment_name=experiment.experiment_name,
+        target_metric=experiment.target_metric,
+        status="running"
+    )
 
 
-@router.get("/{experiment_id}", response_model=ExperimentDesign)
-async def get_experiment(
-    experiment_id: str,
-    db: AsyncSession = Depends(get_db),
-    tenant_id: str = Depends(get_tenant_id),
-    current_user: dict = Depends(get_current_user)
-):
-    """Get experiment design by ID"""
-    try:
-        tenant_uuid = uuid.UUID(tenant_id) if isinstance(tenant_id, str) else tenant_id
-        
-        result = await db.execute(
-            text("""
-                SELECT id, tenant_id, policy_id, name, description, outcome_type,
-                       outcome_variable, baseline_mean, baseline_std, baseline_proportion,
-                       minimum_detectable_effect, alpha, power, arms,
-                       sample_size_per_arm, total_sample_size, estimated_runtime_days,
-                       status, created_at, updated_at
-                FROM experiment_designs
-                WHERE id = :experiment_id AND tenant_id = :tenant_id
-            """),
-            {
-                "experiment_id": uuid.UUID(experiment_id),
-                "tenant_id": tenant_uuid
-            }
-        )
-        row = result.fetchone()
-        
-        if not row:
-            raise HTTPException(status_code=404, detail="Experiment not found")
-        
-        arms_data = json.loads(row[13]) if row[13] else []
-        arms = [ExperimentArm(**arm) for arm in arms_data]
-        
-        experiment = ExperimentDesign(
-            id=str(row[0]),
-            tenant_id=str(row[1]),
-            name=row[3],
-            description=row[4],
-            treatment_variable=None,  # Not stored in DB
-            arms=arms,
-            primary_outcome=row[6],
-            outcome_type=row[5],
-            baseline_mean=float(row[7]) if row[7] else None,
-            baseline_proportion=float(row[9]) if row[9] else None,
-            minimum_detectable_effect=float(row[10]),
-            alpha=float(row[11]),
-            power=float(row[12]),
-            required_sample_size_per_arm=int(row[14]) if row[14] else 0,
-            total_sample_size=int(row[15]) if row[15] else 0,
-            expected_runtime_days=float(row[16]) if row[16] else 0.0,
-            dataset_id=None,  # Not stored in DB
-            policy_config_id=str(row[2]) if row[2] else None,
-            status=row[17] or "design",
-            created_at=row[18]
-        )
-        
-        return experiment
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting experiment: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("", response_model=List[ExperimentDesign])
+@router.get("", response_model=List[OrchestratorExperiment])
 async def list_experiments(
     db: AsyncSession = Depends(get_db),
-    tenant_id: str = Depends(get_tenant_id),
-    current_user: dict = Depends(get_current_user),
-    status: Optional[str] = None,
-    limit: int = 100,
-    offset: int = 0
+    current_user=Depends(get_current_user)
 ):
-    """List all experiments for the current tenant"""
-    try:
-        tenant_uuid = uuid.UUID(tenant_id) if isinstance(tenant_id, str) else tenant_id
-        
-        query = """
-            SELECT id, tenant_id, policy_id, name, description, outcome_type,
-                   outcome_variable, baseline_mean, baseline_std, baseline_proportion,
-                   minimum_detectable_effect, alpha, power, arms,
-                   sample_size_per_arm, total_sample_size, estimated_runtime_days,
-                   status, created_at, updated_at
-            FROM experiment_designs
-            WHERE tenant_id = :tenant_id
-        """
-        params = {"tenant_id": tenant_uuid}
-        
-        if status:
-            query += " AND status = :status"
-            params["status"] = status
-        
-        query += " ORDER BY created_at DESC LIMIT :limit OFFSET :offset"
-        params["limit"] = limit
-        params["offset"] = offset
-        
-        result = await db.execute(text(query), params)
-        rows = result.fetchall()
-        
-        experiments = []
-        for row in rows:
-            arms_data = json.loads(row[13]) if row[13] else []
-            arms = [ExperimentArm(**arm) for arm in arms_data]
-            
-            experiments.append(ExperimentDesign(
-                id=str(row[0]),
-                tenant_id=str(row[1]),
-                name=row[3],
-                description=row[4],
-                treatment_variable=None,
-                arms=arms,
-                primary_outcome=row[6],
-                outcome_type=row[5],
-                baseline_mean=float(row[7]) if row[7] else None,
-                baseline_proportion=float(row[9]) if row[9] else None,
-                minimum_detectable_effect=float(row[10]),
-                alpha=float(row[11]),
-                power=float(row[12]),
-                required_sample_size_per_arm=int(row[14]) if row[14] else 0,
-                total_sample_size=int(row[15]) if row[15] else 0,
-                expected_runtime_days=float(row[16]) if row[16] else 0.0,
-                dataset_id=None,
-                policy_config_id=str(row[2]) if row[2] else None,
-                status=row[17] or "design",
-                created_at=row[18]
-            ))
-        
-        return experiments
-        
-    except Exception as e:
-        logger.error(f"Error listing experiments: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+    await _ensure_bandit_tables(db)
+    tenant_uuid = _resolve_tenant_uuid(current_user)
+    result = await db.execute(
+        text("SELECT id, experiment_name, target_metric, status, created_at FROM experiments WHERE tenant_id = :tenant_id ORDER BY created_at DESC"),
+        {"tenant_id": tenant_uuid}
+    )
+    rows = result.fetchall()
+    return [
+        OrchestratorExperiment(
+            id=str(row[0]),
+            experiment_name=row[1],
+            target_metric=row[2],
+            status=row[3],
+            created_at=row[4].isoformat() if row[4] else None
+        )
+        for row in rows
+    ]
 
-
-@router.post("/{experiment_id}/start", response_model=ExperimentDesign)
-async def start_experiment(
+@router.get("/{experiment_id}/allocation", response_model=AllocationResponse)
+async def get_allocation(
     experiment_id: str,
     db: AsyncSession = Depends(get_db),
-    tenant_id: str = Depends(get_tenant_id),
-    current_user: dict = Depends(get_current_user)
+    current_user=Depends(get_current_user)
 ):
-    """
-    Start running an experiment
+    await _ensure_bandit_tables(db)
+    result = await db.execute(
+        text("SELECT arm_id, alpha, beta FROM experiment_allocations WHERE experiment_id = :experiment_id"),
+        {"experiment_id": uuid_lib.UUID(experiment_id)}
+    )
+    arms_data = result.fetchall()
+    if not arms_data:
+        raise HTTPException(404, "Not found")
+    arm_ids = [row[0] for row in arms_data]
+    bandit = BernoulliThompsonBandit(arm_ids)
+    for row in arms_data:
+        arm_id, alpha, beta = row
+        bandit.state[arm_id].alpha = float(alpha)
+        bandit.state[arm_id].beta = float(beta)
+    allocations = bandit.sample_allocation()
+    return AllocationResponse(experiment_id=experiment_id, allocations=allocations)
 
-    This transitions the experiment from "design" to "running" status.
-    In production, this would:
-    1. Deploy treatment assignment logic to production
-    2. Start logging assignments and outcomes
-    3. Initialize monitoring dashboards
-    """
-    try:
-        tenant_uuid = uuid.UUID(tenant_id) if isinstance(tenant_id, str) else tenant_id
-        
-        # Get experiment
-        result = await db.execute(
-            text("""
-                SELECT id, tenant_id, policy_id, name, description, outcome_type,
-                       outcome_variable, baseline_mean, baseline_std, baseline_proportion,
-                       minimum_detectable_effect, alpha, power, arms,
-                       sample_size_per_arm, total_sample_size, estimated_runtime_days,
-                       status, created_at, updated_at
-                FROM experiment_designs
-                WHERE id = :experiment_id AND tenant_id = :tenant_id
-            """),
-            {
-                "experiment_id": uuid.UUID(experiment_id),
-                "tenant_id": tenant_uuid
-            }
-        )
-        row = result.fetchone()
-        
-        if not row:
-            raise HTTPException(status_code=404, detail="Experiment not found")
-        
-        if row[17] != "design":
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cannot start experiment in status '{row[17]}'"
-            )
-        
-        # Update status
+
+@router.post("/{experiment_id}/update", response_model=AllocationResponse)
+async def update_experiment_allocation(
+    experiment_id: str,
+    request: OutcomeUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    await _ensure_bandit_tables(db)
+    result = await db.execute(
+        text("SELECT arm_id, alpha, beta FROM experiment_allocations WHERE experiment_id = :experiment_id"),
+        {"experiment_id": uuid_lib.UUID(experiment_id)}
+    )
+    arms_data = result.fetchall()
+    if not arms_data:
+        raise HTTPException(404, "Not found")
+
+    arm_ids = [row[0] for row in arms_data]
+    bandit = BernoulliThompsonBandit(arm_ids)
+
+    for row in arms_data:
+        arm_id, alpha, beta = row
+        bandit.state[arm_id].alpha = float(alpha)
+        bandit.state[arm_id].beta = float(beta)
+
+    outcomes = [(item.arm_id, int(item.reward > 0)) for item in request.outcomes]
+    bandit.update(outcomes)
+    allocations = bandit.sample_allocation()
+
+    update_stmt = text("""
+        UPDATE experiment_allocations
+        SET alpha = :alpha,
+            beta = :beta,
+            allocation_rate = :allocation
+        WHERE experiment_id = :experiment_id AND arm_id = :arm_id
+    """)
+    for arm_id, state in bandit.state.items():
+        allocation_rate = allocations.get(arm_id, 0.0)
         await db.execute(
-            text("""
-                UPDATE experiment_designs
-                SET status = 'running', updated_at = NOW()
-                WHERE id = :experiment_id
-            """),
-            {"experiment_id": uuid.UUID(experiment_id)}
-        )
-        await db.commit()
-        
-        # Return updated experiment
-        result = await db.execute(
-            text("""
-                SELECT id, tenant_id, policy_id, name, description, outcome_type,
-                       outcome_variable, baseline_mean, baseline_std, baseline_proportion,
-                       minimum_detectable_effect, alpha, power, arms,
-                       sample_size_per_arm, total_sample_size, estimated_runtime_days,
-                       status, created_at, updated_at
-                FROM experiment_designs
-                WHERE id = :experiment_id
-            """),
-            {"experiment_id": uuid.UUID(experiment_id)}
-        )
-        row = result.fetchone()
-        
-        arms_data = json.loads(row[13]) if row[13] else []
-        arms = [ExperimentArm(**arm) for arm in arms_data]
-        
-        experiment = ExperimentDesign(
-            id=str(row[0]),
-            tenant_id=str(row[1]),
-            name=row[3],
-            description=row[4],
-            treatment_variable=None,
-            arms=arms,
-            primary_outcome=row[6],
-            outcome_type=row[5],
-            baseline_mean=float(row[7]) if row[7] else None,
-            baseline_proportion=float(row[9]) if row[9] else None,
-            minimum_detectable_effect=float(row[10]),
-            alpha=float(row[11]),
-            power=float(row[12]),
-            required_sample_size_per_arm=int(row[14]) if row[14] else 0,
-            total_sample_size=int(row[15]) if row[15] else 0,
-            expected_runtime_days=float(row[16]) if row[16] else 0.0,
-            dataset_id=None,
-            policy_config_id=str(row[2]) if row[2] else None,
-            status=row[17] or "running",
-            created_at=row[18]
-        )
-        
-        logger.info(f"Started experiment {experiment_id}")
-        
-        return experiment
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error starting experiment: {e}", exc_info=True)
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/{experiment_id}/stop", response_model=ExperimentDesign)
-async def stop_experiment(
-    experiment_id: str,
-    tenant_id: str = Depends(get_tenant_id),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Stop a running experiment
-
-    This transitions the experiment to "stopped" status and freezes data collection.
-    """
-    if experiment_id not in experiments_store:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-
-    experiment = experiments_store[experiment_id]
-
-    if experiment.tenant_id != tenant_id:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-
-    if experiment.status != "running":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot stop experiment in status '{experiment.status}'"
-        )
-
-    # Update status
-    experiment.status = "stopped"
-    experiment.completed_at = datetime.utcnow()
-
-    experiments_store[experiment_id] = experiment
-
-    logger.info(f"Stopped experiment {experiment_id}")
-
-    return experiment
-
-
-@router.get("/{experiment_id}/power-analysis", response_model=dict)
-async def power_analysis(
-    experiment_id: str,
-    tenant_id: str = Depends(get_tenant_id),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Compute power analysis for the experiment
-
-    Returns power curve showing statistical power for different effect sizes.
-    """
-    if experiment_id not in experiments_store:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-
-    experiment = experiments_store[experiment_id]
-
-    if experiment.tenant_id != tenant_id:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-
-    try:
-        # Generate power curve
-        effect_sizes = [
-            experiment.minimum_detectable_effect * factor
-            for factor in [0.5, 0.75, 1.0, 1.25, 1.5, 2.0]
-        ]
-
-        # Convert effect sizes to Cohen's d
-        if experiment.outcome_type == "continuous":
-            baseline_std = experiment.baseline_mean * 0.5
-            effect_sizes_d = [e / baseline_std for e in effect_sizes]
-        else:
-            # For binary, use Cohen's h approximation
-            import numpy as np
-            p1 = experiment.baseline_proportion
-            effect_sizes_d = [
-                2 * (np.arcsin(np.sqrt(p1 + e)) - np.arcsin(np.sqrt(p1)))
-                for e in effect_sizes
-            ]
-
-        power_curve = PowerAnalyzer.power_curve(
-            effect_sizes=effect_sizes_d,
-            sample_size_per_arm=experiment.required_sample_size_per_arm,
-            alpha=experiment.alpha
-        )
-
-        # Format results
-        power_results = [
+            update_stmt,
             {
-                'effect_size': float(effect_sizes[i]),
-                'effect_size_standardized': float(effect_sizes_d[i]),
-                'power': float(power)
+                "alpha": state.alpha,
+                "beta": state.beta,
+                "allocation": allocation_rate,
+                "experiment_id": uuid_lib.UUID(experiment_id),
+                "arm_id": arm_id
             }
-            for i, (_, power) in enumerate(power_curve)
-        ]
-
-        return {
-            'experiment_id': experiment_id,
-            'sample_size_per_arm': experiment.required_sample_size_per_arm,
-            'alpha': experiment.alpha,
-            'power_curve': power_results
-        }
-
-    except Exception as e:
-        logger.error(f"Error computing power analysis: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete("/{experiment_id}", status_code=204)
-async def delete_experiment(
-    experiment_id: str,
-    tenant_id: str = Depends(get_tenant_id),
-    current_user: dict = Depends(get_current_user)
-):
-    """Delete an experiment design (only if not started)"""
-    if experiment_id not in experiments_store:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-
-    experiment = experiments_store[experiment_id]
-
-    if experiment.tenant_id != tenant_id:
-        raise HTTPException(status_code=404, detail="Experiment not found")
-
-    if experiment.status in ["running", "completed"]:
-        raise HTTPException(
-            status_code=409,
-            detail="Cannot delete running or completed experiment"
         )
 
-    del experiments_store[experiment_id]
-
-    logger.info(f"Deleted experiment {experiment_id}")
-
-    return None
+    await db.commit()
+    return AllocationResponse(experiment_id=experiment_id, allocations=allocations)

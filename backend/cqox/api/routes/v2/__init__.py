@@ -1,21 +1,12 @@
-"""
-CQOx v2 API Routes
-Policy Lab, Recourse, and Experiment Design
-"""
-
+"""V2 API Router"""
 from fastapi import APIRouter
+from . import multi_arm, experiments, growth, governance, column_suggestions
 
-# Create v2 router
-v2_router = APIRouter(prefix="/v2", tags=["v2"])
-
-# Import subrouters
-from .policies import router as policies_router
-from .recourse import router as recourse_router
-from .experiments import router as experiments_router
-
-# Include subrouters
-v2_router.include_router(policies_router)
-v2_router.include_router(recourse_router)
-v2_router.include_router(experiments_router)
+v2_router = APIRouter()
+v2_router.include_router(multi_arm.router, prefix="/multi-arm", tags=["v2-multi-arm"])
+v2_router.include_router(experiments.router, prefix="/experiments", tags=["v2-experiments"])
+v2_router.include_router(growth.router, prefix="/growth", tags=["v2-growth"])
+v2_router.include_router(governance.router, prefix="/governance", tags=["v2-governance"])
+v2_router.include_router(column_suggestions.router, tags=["v2-datasets"])
 
 __all__ = ["v2_router"]

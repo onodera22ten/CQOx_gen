@@ -19,6 +19,7 @@ graph TB
     LOGIN_CHECK -->|No| LOGIN[ログインページ]
     LOGIN_CHECK -->|Yes| CONSOLE[Decision Console]
 
+
     LOGIN --> LOGIN_EMAIL[メール/パスワード]
     LOGIN --> LOGIN_OAUTH[OAuth2 ログイン<br/>Google/GitHub/Microsoft]
     LOGIN --> SIGNUP[サインアップ]

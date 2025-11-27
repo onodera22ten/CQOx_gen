@@ -21,6 +21,7 @@ export interface DecisionSummaryCardProps {
   reason?: string;
   recommendations?: string[];
   onViewDetails?: () => void;
+  detailsLoading?: boolean;
 }
 
 const verdictConfig: Record<Verdict, { color: string; bgColor: string; label: string }> = {
@@ -44,6 +45,7 @@ export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({
   reason,
   recommendations,
   onViewDetails,
+  detailsLoading,
 }) => {
   const config = verdictConfig[verdict];
 
@@ -183,11 +185,13 @@ export const DecisionSummaryCard: React.FC<DecisionSummaryCardProps> = ({
               cursor: 'pointer',
               fontSize: '14px',
               transition: 'opacity 0.2s',
+              opacity: detailsLoading ? 0.6 : 1,
             }}
             onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.8')}
             onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+            disabled={detailsLoading}
           >
-            View Detailed Diagnostics →
+            {detailsLoading ? 'Loading…' : 'View Detailed Diagnostics →'}
           </button>
         </div>
       )}

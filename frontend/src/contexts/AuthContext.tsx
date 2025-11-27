@@ -5,6 +5,7 @@
  */
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { jwtDecode } from 'jwt-decode';
+import { getApiUrl } from '../utils/env';
 
 interface User {
   id: number;
@@ -39,7 +40,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = getApiUrl();
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 // Import mock auth
@@ -163,18 +164,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           is_active: true
         });
       } else {
-        // Use real backend API
-        const response = await fetch(`${API_URL}/auth/login`, {
+        // Use real backend API (OAuth2 password grant contract)
+        const formBody = new URLSearchParams();
+        formBody.append('username', email);
+        formBody.append('password', password);
+        formBody.append('scope', '');
+        formBody.append('grant_type', 'password');
+
+        const response = await fetch(`${API_URL}/auth/token`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: JSON.stringify({ email, password }),
+          body: formBody.toString(),
         });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ detail: 'Login failed' }));
-          throw new Error(errorData.detail || 'Login failed');
+          const detail =
+            Array.isArray(errorData.detail)
+              ? errorData.detail.map((d: any) => d.msg || JSON.stringify(d)).join(', ')
+              : errorData.detail;
+          throw new Error(detail || 'Login failed');
         }
 
         data = await response.json();
@@ -234,7 +245,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const refreshToken = localStorage.getItem('refresh_token');
 
     if (!refreshToken) {
-      throw new Error('No refresh token available');
+      return;
     }
 
     try {
@@ -247,21 +258,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (!response.ok) {
-        // Refresh token expired, logout
         await logout();
-        throw new Error('Refresh token expired');
+        return;
       }
 
       const data = await response.json();
 
-      // Store new access token
-      localStorage.setItem('access_token', data.access_token);
+      if (data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+      }
+      if (data.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
 
       // Fetch user info with new token
-      await fetchUserInfo(data.access_token);
+      if (data.access_token) {
+        await fetchUserInfo(data.access_token);
+      }
     } catch (error) {
       console.error('Token refresh failed:', error);
-      throw error;
+      await logout();
     }
   };
 

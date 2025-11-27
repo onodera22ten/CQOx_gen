@@ -14,6 +14,23 @@ Base = declarative_base()
 DEFAULT_TENANT_ID = uuid_lib.UUID("00000000-0000-0000-0000-000000000001")
 
 
+class User(Base):
+    """User table for authentication"""
+    __tablename__ = "users"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid_lib.uuid4)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    full_name = Column(String(255))
+    role = Column(String(50), nullable=False, default="viewer")
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_superuser = Column(Boolean, default=False, nullable=False)
+    tenant_id = Column(PGUUID(as_uuid=True), default=DEFAULT_TENANT_ID)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_login = Column(DateTime)
+
+
 class Dataset(Base):
     """Dataset table"""
     __tablename__ = "datasets"
@@ -67,8 +84,8 @@ class ModelRun(Base):
     """Model training run table"""
     __tablename__ = "model_runs"
 
-    id = Column(String, primary_key=True)
-    dataset_id = Column(String, ForeignKey("datasets.id"))
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid_lib.uuid4)
+    dataset_id = Column(PGUUID(as_uuid=True), ForeignKey("datasets.id"))
     estimator = Column(String, nullable=False)
     outcome = Column(String)
     treatment = Column(String)
@@ -102,8 +119,8 @@ class Diagnostic(Base):
     """Diagnostic results table"""
     __tablename__ = "diagnostics"
 
-    id = Column(String, primary_key=True)
-    model_run_id = Column(String, ForeignKey("model_runs.id"))
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid_lib.uuid4)
+    model_run_id = Column(PGUUID(as_uuid=True), ForeignKey("model_runs.id"))
     diagnostic_type = Column(String, nullable=False)
     score = Column(Float)
     passed = Column(Boolean, default=False)
@@ -190,36 +207,122 @@ class AnalysisRun(Base):
     __tablename__ = "analysis_runs"
 
     id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid_lib.uuid4)
-    policy_id = Column(PGUUID(as_uuid=True), ForeignKey("policies.id"), nullable=False)
+    policy_id = Column(PGUUID(as_uuid=True), ForeignKey("policies.id"), nullable=True)  # Optional for exploratory analysis
     dataset_id = Column(PGUUID(as_uuid=True), ForeignKey("datasets.id"), nullable=False)
-    
+
     # Analysis configuration
     estimators = Column(JSON)  # List of estimators: ["DR", "IPW", etc.]
     treatment_col = Column(String)
     outcome_col = Column(String)
     feature_cols = Column(JSON)
     scenario_spec = Column(JSON)
-    
+    diagnostics_snapshot = Column(JSON)
+    impact_metrics = Column(JSON)
+    estimator_results = Column(JSON)
+
     # Status
     status = Column(String, default="pending")  # pending, running, completed, failed
     progress = Column(Float, default=0.0)  # 0.0-1.0
-    
+
     # Results (if completed)
     delta_yen = Column(Float)
     delta_yen_ci_low = Column(Float)
     delta_yen_ci_high = Column(Float)
     verdict = Column(String)  # Go, Canary, Hold
-    
+
+    # Viz.pdf仕様: Global Growth Console用の追加メトリクス
+    roi = Column(Float)  # Return on Investment
+    cas = Column(Float)  # Causal Assurance Score (0-1)
+    risk = Column(Float)  # Risk score / CVaR
+
+    # Marketing metadata (Viz.pdf仕様)
+    channel = Column(String)  # e.g., "email", "app_push", "multi-channel"
+    segment_label = Column(String)  # e.g., "High LTV", "RFM 4-5-5"
+
+    # Budget & Reach (Viz.pdf仕様)
+    budget = Column(Float)  # Estimated/actual cost
+    reach_users = Column(Integer)  # Estimated reach population
+
+    # Period (Viz.pdf仕様)
+    period_start = Column(DateTime)  # Analysis period start
+    period_end = Column(DateTime)  # Analysis period end
+
     # Timestamps
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
-    
+
     # Error (if failed)
     error_message = Column(Text)
-    
+
     # Multi-tenancy
     tenant_id = Column(PGUUID(as_uuid=True), default=DEFAULT_TENANT_ID)
-    
+
+    # Created timestamp
+    created_at = Column(DateTime, default=datetime.utcnow)
+
     # Relationships
     policy = relationship("Policy")
     dataset = relationship("Dataset")
+
+
+class Segment(Base):
+    """Segment table (Viz.pdf仕様: Segment Opportunity Map用)"""
+    __tablename__ = "segments"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid_lib.uuid4)
+    segment_id = Column(String, unique=True, nullable=False, index=True)  # e.g., "high_ltv", "rfm_455"
+    name = Column(String, nullable=False)  # Display name
+    description = Column(Text)
+
+    # Segment metrics (Viz.pdf仕様)
+    incremental_clv = Column(Float)  # Incremental CLV per user (1ユーザあたりΔLTV)
+    user_count = Column(Integer)  # Segment population
+
+    # RFM scores (optional)
+    rfm_r = Column(Integer)  # Recency
+    rfm_f = Column(Integer)  # Frequency
+    rfm_m = Column(Integer)  # Monetary
+
+    # Multi-tenancy
+    tenant_id = Column(PGUUID(as_uuid=True), default=DEFAULT_TENANT_ID)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class GovernanceRule(Base):
+    """Module D: Governance rules table"""
+    __tablename__ = "governance_rules"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid_lib.uuid4)
+    tenant_id = Column(PGUUID(as_uuid=True), default=DEFAULT_TENANT_ID, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    rule_type = Column(String, nullable=False)  # fairness | data_quality | compliance
+    severity = Column(String, default="medium")
+    action = Column(String, default="warn")
+    threshold_value = Column(Float)
+    config = Column(JSON, default=dict)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    violations = relationship("GovernanceViolation", back_populates="rule")
+
+
+class GovernanceViolation(Base):
+    """Module D: Governance violation log"""
+    __tablename__ = "governance_violations"
+
+    id = Column(PGUUID(as_uuid=True), primary_key=True, default=uuid_lib.uuid4)
+    tenant_id = Column(PGUUID(as_uuid=True), default=DEFAULT_TENANT_ID, index=True, nullable=False)
+    rule_id = Column(PGUUID(as_uuid=True), ForeignKey("governance_rules.id"), nullable=True)
+    violation_type = Column(String, nullable=False)
+    severity = Column(String, nullable=False)
+    details = Column(JSON)
+    status = Column(String, default="open")
+    detected_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    rule = relationship("GovernanceRule", back_populates="violations")

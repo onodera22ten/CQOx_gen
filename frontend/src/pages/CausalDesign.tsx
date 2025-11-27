@@ -1,14 +1,61 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { datasetsAPI } from '../api/v1/datasets'
+import { datasetsAPI, TreatmentSummary } from '../api/v1/datasets'
 import { analysisAPI, AnalysisStatus } from '../api/v1/analysis'
+import type { AnalysisDetails } from '../api/v1/analysis'
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ContextBar } from '../components/ContextBar'
 import { DecisionSummaryCard } from '../components/DecisionSummaryCard'
 import { formatYenShort, formatYenMan } from '../utils/format'
 
 const DEFAULT_POLICY_ID = '00000000-0000-0000-0000-000000000002'
 
+const TREATMENT_MESSAGES = {
+  single_class: {
+    title: '処置列が 1 クラスしかありません',
+    body: '選択された処置列には実質 1 種類の値のみが含まれています。CQOx の推定器は「施策なし (0)」と「施策あり (1)」の 2 グループを比較する前提です。',
+    actions: [
+      'フィルタ条件を見直し、施策あり／なしの両方が含まれるデータをアップロードしてください。',
+      '施策が打たれていないデータでは因果効果を推定できません。別の施策列を選択してください。'
+    ]
+  },
+  multi_class: {
+    title: '現在は 0/1 のバイナリ処置のみ対応しています',
+    body: '選択された処置列には 3 クラス以上の値が含まれています。v1 の推定器は 0/1 の処置のみサポートしているため、バイナリ列に変換する必要があります。',
+    actions: [
+      '例: is_enhanced_care = 1 if treatment_arm == "enhanced_care" else 0 の列を作成し、その列を処置として選択してください。',
+      '既に存在する 0/1 列（例: icu_admission, readmission_30d）を処置列として選ぶ方法もあります。'
+    ]
+  },
+  unavailable: {
+    title: '自動検証は利用できません',
+    body: 'このデータセットは v1 の処置列検証サービス対象外です。モデル自体は実行できますが、処置列が 2 値になっているかは CSV 側でご確認ください。',
+    actions: [
+      '処置列に 2 種類以上の値（施策あり／なし）が含まれているか確認してください。',
+      '0/1 または True/False などの形式に変換してから再度アップロードしてください。'
+    ]
+  },
+  unavailable: {
+    title: '自動検証は利用できません',
+    body: 'このデータセットは v1 の処置列検証サービス対象外です。モデル自体は実行できますが、処置列が 2 値になっているかは CSV 側でご確認ください。',
+    actions: [
+      '処置列に少なくとも 2 種類の値（施策なし／あり）が含まれているか確認してください。',
+      '0/1 や True/False などのバイナリ形式に変換してから再度アップロードしてください。'
+    ]
+  }
+} as const
+
+type TreatmentWarningKey = keyof typeof TREATMENT_MESSAGES
+
+const mapErrorCodeToTreatmentStatus = (code?: string | null): TreatmentWarningKey | null => {
+  if (!code) return null
+  if (code === 'treatment_single_class') return 'single_class'
+  if (code === 'treatment_multiclass' || code === 'treatment_encoding_failure') return 'multi_class'
+  return null
+}
+
 export default function CausalDesign() {
+  const navigate = useNavigate()
   const [selectedDataset, setSelectedDataset] = useState<string>('')
   const [selectedEstimators, setSelectedEstimators] = useState<string[]>(['DR', 'IPW'])
   const [treatmentCol, setTreatmentCol] = useState<string>('')
@@ -17,6 +64,126 @@ export default function CausalDesign() {
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisStatus | null>(null)
   const [polling, setPolling] = useState(false)
   const [availableColumns, setAvailableColumns] = useState<string[]>([])
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null)
+  const [treatmentSummary, setTreatmentSummary] = useState<TreatmentSummary | null>(null)
+  const [treatmentSummaryLoading, setTreatmentSummaryLoading] = useState(false)
+  const analysisErrorWarning = mapErrorCodeToTreatmentStatus(currentAnalysis?.error_code ?? null)
+  const treatmentBlocked = treatmentSummary ? (treatmentSummary.status === 'single_class' || treatmentSummary.status === 'multi_class') : false
+
+  const renderTreatmentGuidance = (status: TreatmentWarningKey, details?: Record<string, any>) => {
+    const config = TREATMENT_MESSAGES[status]
+    let wrapperStyle: React.CSSProperties
+    let textColor = '#fca5a5'
+    let accentColor = '#fecaca'
+
+    if (status === 'single_class') {
+      wrapperStyle = { background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)' }
+    } else if (status === 'multi_class') {
+      wrapperStyle = { background: 'rgba(249,115,22,0.12)', border: '1px solid rgba(249,115,22,0.4)' }
+      textColor = '#fed7aa'
+      accentColor = '#fed7aa'
+    } else {
+      wrapperStyle = { background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.4)' }
+      textColor = '#bfdbfe'
+      accentColor = '#bfdbfe'
+    }
+
+    return (
+      <div style={{ marginTop: '8px', padding: '12px', borderRadius: '8px', color: textColor, ...wrapperStyle }}>
+        <div style={{ fontWeight: 600, color: accentColor, marginBottom: '4px' }}>{config.title}</div>
+        <div style={{ color: accentColor, fontSize: '13px', marginBottom: '8px' }}>{config.body}</div>
+        {details?.unique_values && details.unique_values.length > 0 && status !== 'unavailable' && (
+          <div style={{ fontSize: '12px', color: '#fef3c7', marginBottom: '8px' }}>
+            検出された値: <code style={{ fontSize: '12px' }}>{details.unique_values.join(', ')}</code>
+          </div>
+        )}
+        {details?.value_counts && Object.keys(details.value_counts).length > 0 && status !== 'unavailable' && (
+          <div style={{ fontSize: '12px', color: '#fef3c7', marginBottom: '8px' }}>
+            サンプル件数: {Object.entries(details.value_counts).slice(0, 3).map(([val, count]) => `${val}: ${count}`).join(' / ')}
+          </div>
+        )}
+        <ul style={{ margin: 0, paddingLeft: '18px', color: textColor, fontSize: '12px' }}>
+          {config.actions.map((action) => (
+            <li key={action} style={{ marginBottom: '4px' }}>{action}</li>
+          ))}
+        </ul>
+        {details?.reason && (
+          <div style={{ marginTop: '6px', fontSize: '12px', opacity: 0.8 }}>
+            詳細: {details.reason}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  const renderTreatmentSuccess = (summary: TreatmentSummary) => (
+    <div style={{ marginTop: '8px', padding: '10px', borderRadius: '8px', border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(16,185,129,0.12)', color: '#a7f3d0', fontSize: '12px' }}>
+      ✅ この処置列は 0/1 のバイナリ条件を満たしています。（ユニーク値: {summary.unique_count}）
+    </div>
+  )
+
+  const normalizeNumber = (value: number | string | null | undefined, fallback = 0): number => {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : fallback
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value)
+      return Number.isFinite(parsed) ? parsed : fallback
+    }
+    return fallback
+  }
+
+  const safeLocaleString = (
+    value: number | string | null | undefined,
+    options?: Intl.NumberFormatOptions,
+    locale = 'ja-JP',
+    fallback = '—'
+  ): string => {
+    const normalized = normalizeNumber(value, Number.NaN)
+    if (!Number.isFinite(normalized)) {
+      return fallback
+    }
+    return normalized.toLocaleString(locale, options)
+  }
+
+  const formatDateTime = (value?: string | null, locale = 'ja-JP'): string => {
+    if (!value) return '—'
+    const parsed = new Date(value)
+    return Number.isNaN(parsed.getTime()) ? '—' : parsed.toLocaleString(locale)
+  }
+
+  const toNumberOrNull = (value: number | string | null | undefined): number | null => {
+    const normalized = normalizeNumber(value, Number.NaN)
+    return Number.isFinite(normalized) ? normalized : null
+  }
+
+  const formatYenShortOrDash = (value: number | null): string =>
+    value !== null ? formatYenShort(value) : '—'
+
+  const formatYenManOrDash = (value: number | null): string =>
+    value !== null ? formatYenMan(value) : '—'
+
+  const formatPercentOrDash = (value: number | null, digits = 1): string =>
+    value !== null ? `${(value * 100).toFixed(digits)}%` : '—'
+
+  const formatPercentDeltaOrDash = (value: number | null, digits = 2): string =>
+    value !== null ? `${value >= 0 ? '+' : ''}${(value * 100).toFixed(digits)}pp uplift` : '—'
+
+  const formatYenPerUserOrDash = (value: number | null, digits = 1): string =>
+    value !== null
+      ? `¥${value.toLocaleString('ja-JP', {
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits
+        })}`
+      : '—'
+
+  const formatYenPerUserDeltaOrDash = (value: number | null, digits = 1): string =>
+    value !== null
+      ? `${value >= 0 ? '+' : '-'}¥${Math.abs(value).toLocaleString('ja-JP', {
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits
+        })} / user uplift`
+      : '—'
 
   const queryClient = useQueryClient()
 
@@ -29,6 +196,44 @@ export default function CausalDesign() {
     queryKey: ['analyses'],
     queryFn: () => analysisAPI.list({ page: 1, page_size: 10 })
   })
+
+  useEffect(() => {
+    if (!selectedSnapshotId && currentAnalysis?.status === 'completed') {
+      setSelectedSnapshotId(currentAnalysis.analysis_id)
+    }
+  }, [currentAnalysis, selectedSnapshotId])
+
+  const displayAnalysisId =
+    selectedSnapshotId || (currentAnalysis?.status === 'completed' ? currentAnalysis.analysis_id : null)
+
+  const { data: analysisDetails, isFetching: isDetailsLoading } = useQuery({
+    queryKey: ['analysis-details', displayAnalysisId],
+    queryFn: () => analysisAPI.getDetails(displayAnalysisId!),
+    enabled: !!displayAnalysisId,
+    staleTime: 60_000
+  })
+
+  const displayAnalysis: AnalysisStatus | null =
+    analysisDetails?.analysis || (currentAnalysis?.status === 'completed' ? currentAnalysis : null)
+
+  const impactMetrics = analysisDetails?.impact_metrics
+  const safeDeltaYen = normalizeNumber(displayAnalysis?.delta_yen, 0)
+  const estimatedCost = toNumberOrNull(impactMetrics?.estimated_cost)
+  const projectedConversionRate = toNumberOrNull(impactMetrics?.projected_conversion_rate)
+  const conversionUplift = toNumberOrNull(impactMetrics?.conversion_uplift)
+  const usersAffected = toNumberOrNull(impactMetrics?.users_affected)
+  const roiFromSnapshot = toNumberOrNull(impactMetrics?.estimated_roi)
+  const fallbackRoi =
+    estimatedCost !== null && estimatedCost !== 0 ? safeDeltaYen / estimatedCost : null
+  const roiValue = roiFromSnapshot ?? fallbackRoi
+  const hasImpactMetrics =
+    !!impactMetrics &&
+    Object.values(impactMetrics).some((value) => value !== null && value !== undefined)
+  const casScore = analysisDetails?.diagnostics?.cas_score
+  const isSnapshotView =
+    !!displayAnalysis &&
+    !!selectedSnapshotId &&
+    (!currentAnalysis || selectedSnapshotId !== currentAnalysis.analysis_id)
 
   // Fetch columns when dataset is selected
   const { data: datasetColumns, isLoading: columnsLoading, error: columnsError } = useQuery({
@@ -57,6 +262,47 @@ export default function CausalDesign() {
       }
     }
   }, [datasetColumns])
+
+  useEffect(() => {
+    if (!selectedDataset || !treatmentCol) {
+      setTreatmentSummary(null)
+      setTreatmentSummaryLoading(false)
+      return
+    }
+
+    let cancelled = false
+    setTreatmentSummaryLoading(true)
+
+    datasetsAPI.getTreatmentSummary(selectedDataset, treatmentCol)
+      .then((summary) => {
+        if (!cancelled) {
+          setTreatmentSummary(summary)
+        }
+      })
+      .catch((err: any) => {
+        if (!cancelled) {
+          console.warn('Treatment summary unavailable:', err)
+          const message = err?.message || '検証サービスを利用できませんでした。'
+          setTreatmentSummary({
+            status: 'unavailable',
+            unique_count: 0,
+            unique_values: [],
+            value_counts: {},
+            non_null_count: 0,
+            reason: message
+          })
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setTreatmentSummaryLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedDataset, treatmentCol])
 
   const startAnalysisMutation = useMutation({
     mutationFn: async (params: {
@@ -155,12 +401,22 @@ export default function CausalDesign() {
       return
     }
 
+    if (treatmentSummaryLoading) {
+      alert('処置列の検証が完了するまでお待ちください。')
+      return
+    }
+
+    if (treatmentBlocked) {
+      alert('処置列がバイナリ条件を満たしていません。表示されているガイドに従って修正してください。')
+      return
+    }
+
     const dataset = datasets?.find((d: any) => d.id === selectedDataset)
     const rowCount = dataset?.row_count || 0
 
     if (rowCount > 1000000) {
       const proceed = window.confirm(
-        `⚠️ 大規模データセット (${rowCount.toLocaleString()} rows)\n\n` +
+        `⚠️ 大規模データセット (${safeLocaleString(rowCount, undefined, 'ja-JP', '0')} rows)\n\n` +
         `処理には時間がかかります（目安: 10-30分）。\n` +
         `バッチ処理（10万行/チャンク）で実行されます。\n\n` +
         `続行しますか？`
@@ -208,50 +464,66 @@ export default function CausalDesign() {
       )}
 
       {/* Decision Summary Card */}
-      {currentAnalysis && currentAnalysis.status === 'completed' && currentAnalysis.delta_yen !== undefined && (
-        <DecisionSummaryCard
-          title="Causal Analysis Result"
-          verdict={currentAnalysis.verdict as any || 'Hold'}
-          deltaYen={currentAnalysis.delta_yen}
-          deltaYenCiLow={currentAnalysis.delta_yen_ci_low}
-          deltaYenCiHigh={currentAnalysis.delta_yen_ci_high}
-          casScore={0.87} // モックデータ - 実際はバックエンドから取得
-          reason={
-            currentAnalysis.verdict === 'Go'
-              ? 'High expected profit with low risk. Causal quality checks passed.'
-              : currentAnalysis.verdict === 'Canary'
-              ? 'Moderate confidence. Recommend A/B test before full rollout.'
-              : 'Negative expected profit or low causal quality.'
-          }
-          recommendations={
-            currentAnalysis.verdict === 'Go'
-              ? [
-                  'Proceed with policy deployment',
-                  'Monitor key metrics for first 7 days',
-                  'Set up automated alerts for anomalies',
-                ]
-              : currentAnalysis.verdict === 'Canary'
-              ? [
-                  'Run A/B test with 10-20% traffic',
-                  'Collect more data to improve confidence',
-                  'Review diagnostics for potential issues',
-                ]
-              : [
-                  'Do not deploy this policy',
-                  'Review dataset quality and sample size',
-                  'Consider alternative policies',
-                ]
-          }
-          onViewDetails={() => {
-            if (currentAnalysis?.analysis_id) {
-              window.location.href = `/diagnostics?analysis_id=${currentAnalysis.analysis_id}`;
+      {displayAnalysis && displayAnalysis.status === 'completed' && displayAnalysis.delta_yen !== undefined && (
+        <>
+          {isSnapshotView && (
+            <div style={{
+              marginBottom: '12px',
+              padding: '12px 16px',
+              borderRadius: '10px',
+              background: 'rgba(59, 130, 246, 0.15)',
+              border: '1px solid rgba(59, 130, 246, 0.4)',
+              color: '#bfdbfe',
+              fontSize: '13px'
+            }}>
+              🔁 スナップショット表示中: {displayAnalysis.analysis_id.slice(0, 8)}… （再計算ではなく当時の結果を復元しています）
+            </div>
+          )}
+          <DecisionSummaryCard
+            title="Causal Analysis Result"
+            verdict={(displayAnalysis.verdict as any) || 'Hold'}
+            deltaYen={displayAnalysis.delta_yen}
+            deltaYenCiLow={displayAnalysis.delta_yen_ci_low}
+            deltaYenCiHigh={displayAnalysis.delta_yen_ci_high}
+            casScore={casScore ?? undefined}
+            reason={
+              displayAnalysis.verdict === 'Go'
+                ? 'High expected profit with low risk. Causal quality checks passed.'
+                : displayAnalysis.verdict === 'Canary'
+                  ? 'Moderate confidence. Recommend A/B test before full rollout.'
+                  : 'Negative expected profit or low causal quality.'
             }
-          }}
-        />
+            recommendations={
+              displayAnalysis.verdict === 'Go'
+                ? [
+                    'Proceed with policy deployment',
+                    'Monitor key metrics for first 7 days',
+                    'Set up automated alerts for anomalies',
+                  ]
+                : displayAnalysis.verdict === 'Canary'
+                ? [
+                    'Run A/B test with 10-20% traffic',
+                    'Collect more data to improve confidence',
+                    'Review diagnostics for potential issues',
+                  ]
+                : [
+                    'Do not deploy this policy',
+                    'Review dataset quality and sample size',
+                    'Consider alternative policies',
+                  ]
+            }
+            detailsLoading={isDetailsLoading}
+            onViewDetails={() => {
+              if (displayAnalysis?.analysis_id) {
+                navigate(`/diagnostics?analysis_id=${displayAnalysis.analysis_id}`)
+              }
+            }}
+          />
+        </>
       )}
 
       {/* S0 vs S1 Comparison */}
-      {currentAnalysis && currentAnalysis.status === 'completed' && currentAnalysis.delta_yen !== undefined && (
+      {displayAnalysis && displayAnalysis.status === 'completed' && displayAnalysis.delta_yen !== undefined && (
         <div style={{
           marginBottom: '24px',
           background: '#1e293b',
@@ -352,34 +624,40 @@ export default function CausalDesign() {
                 <div style={{ padding: '16px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
                   <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' }}>INCREMENTAL REVENUE (Δ¥)</div>
                   <div style={{ fontSize: '32px', fontWeight: '700', color: '#10b981' }}>
-                    +{formatYenShort(currentAnalysis.delta_yen || 0)}
+                    +{formatYenShort(displayAnalysis.delta_yen || 0)}
                   </div>
                   <div style={{ fontSize: '11px', color: '#10b981', marginTop: '4px', marginBottom: '6px' }}>
-                    {formatYenMan(currentAnalysis.delta_yen || 0)}
+                    {formatYenMan(displayAnalysis.delta_yen || 0)}
                   </div>
                   <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>
-                    95% CI: {formatYenShort(currentAnalysis.delta_yen_ci_low || 0)} ~ {formatYenShort(currentAnalysis.delta_yen_ci_high || 0)}
+                    95% CI: {formatYenShort(displayAnalysis.delta_yen_ci_low || 0)} ~ {formatYenShort(displayAnalysis.delta_yen_ci_high || 0)}
                   </div>
                 </div>
 
                 <div style={{ padding: '16px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
                   <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' }}>ESTIMATED COST</div>
-                  <div style={{ fontSize: '32px', fontWeight: '700', color: '#f1f5f9' }}>{formatYenShort(850000)}</div>
+                  <div style={{ fontSize: '32px', fontWeight: '700', color: '#f1f5f9' }}>{formatYenShortOrDash(estimatedCost)}</div>
                   <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', marginBottom: '4px' }}>
-                    {formatYenMan(850000)}
+                    {formatYenManOrDash(estimatedCost)}
                   </div>
                   <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Campaign cost</div>
                 </div>
 
                 <div style={{ padding: '16px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' }}>PROJECTED CONVERSION RATE</div>
-                  <div style={{ fontSize: '32px', fontWeight: '700', color: '#10b981' }}>3.1%</div>
-                  <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>+0.7pp uplift</div>
+                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' }}>PROJECTED OUTCOME / USER</div>
+                  <div style={{ fontSize: '32px', fontWeight: '700', color: '#10b981' }}>
+                    {formatYenPerUserOrDash(projectedConversionRate)}
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>
+                    {formatYenPerUserDeltaOrDash(conversionUplift)}
+                  </div>
                 </div>
 
                 <div style={{ padding: '16px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
                   <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' }}>USERS AFFECTED</div>
-                  <div style={{ fontSize: '32px', fontWeight: '700', color: '#f1f5f9' }}>95K</div>
+                  <div style={{ fontSize: '32px', fontWeight: '700', color: '#f1f5f9' }}>
+                    {safeLocaleString(usersAffected)}
+                  </div>
                   <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>Treatment group</div>
                 </div>
               </div>
@@ -398,29 +676,30 @@ export default function CausalDesign() {
               <div>
                 <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px', fontWeight: '600' }}>📈 NET IMPACT (S1 - S0)</div>
                 <div style={{ fontSize: '28px', fontWeight: '700', color: '#10b981' }}>
-                  +{formatYenShort(currentAnalysis.delta_yen || 0)} incremental profit
+                  +{formatYenShort(displayAnalysis.delta_yen || 0)} incremental profit
                 </div>
                 <div style={{ fontSize: '12px', color: '#10b981', marginTop: '4px' }}>
-                  {formatYenMan(currentAnalysis.delta_yen || 0)}
+                  {formatYenMan(displayAnalysis.delta_yen || 0)}
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '4px', fontWeight: '600' }}>ROI</div>
                 <div style={{ fontSize: '28px', fontWeight: '700', color: '#3b82f6' }}>
-                  {(((currentAnalysis.delta_yen || 0) / 850000)).toFixed(1)}x
+                  {roiValue !== null ? `${roiValue.toFixed(1)}x` : '—'}
                 </div>
               </div>
             </div>
             <div style={{ marginTop: '16px', fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
               💡 <strong style={{ color: '#3b82f6' }}>Causal Interpretation:</strong> S1シナリオ（施策実施）は、S0（現状維持）と比較して
-              統計的に有意な増分利益をもたらすことが因果推論により検証されました。CAS Score: 0.87 (High Confidence)
+              統計的に有意な増分利益をもたらすことが因果推論により検証されました。CAS Score: {casScore ? casScore.toFixed(2) : 'N/A'}
+              {analysisDetails?.diagnostics?.quality_level ? ` (${analysisDetails.diagnostics.quality_level} Confidence)` : ''}
             </div>
           </div>
         </div>
       )}
 
       {/* Current Analysis Status - Running/Failed */}
-      {currentAnalysis && currentAnalysis.status !== 'completed' && (
+      {currentAnalysis && (currentAnalysis.status === 'running' || currentAnalysis.status === 'pending' || currentAnalysis.status === 'failed') && (
         <div style={{ 
           marginBottom: '24px', 
           padding: '20px', 
@@ -467,9 +746,23 @@ export default function CausalDesign() {
             }} />
           </div>
 
-          {currentAnalysis.error_message && (
-            <div style={{ marginTop: '12px', color: '#ef4444', fontSize: '14px' }}>
-              ❌ Error: {currentAnalysis.error_message}
+          {currentAnalysis.status === 'failed' && (currentAnalysis.error_message || analysisErrorWarning) && (
+            <div style={{ marginTop: '12px' }}>
+              {analysisErrorWarning
+                ? renderTreatmentGuidance(
+                    analysisErrorWarning,
+                    currentAnalysis.error_details || undefined
+                  )
+                : (
+                  <div style={{ color: '#ef4444', fontSize: '14px' }}>
+                    ❌ Error: {currentAnalysis.error_message}
+                  </div>
+                )}
+              {currentAnalysis.error_message && analysisErrorWarning && (
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#fecaca' }}>
+                  詳細: {currentAnalysis.error_message}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -481,6 +774,12 @@ export default function CausalDesign() {
         <p style={{ marginBottom: '16px', color: '#94A3B8' }}>
           アップロードしたデータで因果推論を実行
         </p>
+        <div style={{ marginBottom: '16px', padding: '12px', borderRadius: '8px', border: '1px solid rgba(148,163,184,0.3)', background: 'rgba(15,23,42,0.6)', color: '#cbd5e1', fontSize: '13px' }}>
+          <div style={{ fontWeight: 600, color: '#fbbf24', marginBottom: '4px' }}>現在の制約（v1）</div>
+          <div>
+            処置列は 0/1 のバイナリ列のみ対応しています。3 クラス以上の施策や、施策が存在しないデータでは推定できません。
+          </div>
+        </div>
 
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#F1F5F9' }}>
@@ -504,7 +803,7 @@ export default function CausalDesign() {
               <option value="">Select a dataset...</option>
               {datasets?.map((dataset: any) => (
                 <option key={dataset.id} value={dataset.id}>
-                  {dataset.name} ({dataset.row_count?.toLocaleString()} rows, {dataset.column_count} cols)
+                  {dataset.name} ({safeLocaleString(dataset.row_count)} rows, {dataset.column_count} cols)
                 </option>
               ))}
             </select>
@@ -570,6 +869,19 @@ export default function CausalDesign() {
               />
             )}
           </div>
+          {treatmentCol && (
+            <div style={{ marginTop: '6px' }}>
+              {treatmentSummaryLoading && (
+                <div style={{ color: '#38bdf8', fontSize: '12px' }}>🔎 処置列を検証しています...</div>
+              )}
+              {!treatmentSummaryLoading && treatmentSummary && treatmentSummary.status !== 'ok' && (
+                renderTreatmentGuidance(treatmentSummary.status as TreatmentWarningKey, treatmentSummary as Record<string, any>)
+              )}
+              {!treatmentSummaryLoading && treatmentSummary && treatmentSummary.status === 'ok' && (
+                renderTreatmentSuccess(treatmentSummary)
+              )}
+            </div>
+          )}
           <div>
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500', color: '#F1F5F9' }}>
               Outcome Column {datasetColumns?.suggestions.outcome_col && <span style={{ color: '#10b981', fontSize: '12px' }}>(auto-detected)</span>}
@@ -707,7 +1019,7 @@ export default function CausalDesign() {
         <button 
           className="btn btn-primary" 
           onClick={handleTrain}
-          disabled={startAnalysisMutation.isPending || polling}
+          disabled={startAnalysisMutation.isPending || polling || treatmentSummaryLoading || treatmentBlocked}
         >
           {startAnalysisMutation.isPending ? '開始中...' : polling ? '実行中...' : '🚀 Train Models'}
         </button>
@@ -721,6 +1033,7 @@ export default function CausalDesign() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #334155', color: '#94A3B8' }}>Replay</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #334155', color: '#94A3B8' }}>ID</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #334155', color: '#94A3B8' }}>Status</th>
                   <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #334155', color: '#94A3B8' }}>Δ¥</th>
@@ -731,6 +1044,19 @@ export default function CausalDesign() {
               <tbody>
                 {analyses.map((analysis: any) => (
                   <tr key={analysis.analysis_id} style={{ borderBottom: '1px solid #334155' }}>
+                    <td style={{ padding: '12px', color: '#F1F5F9' }}>
+                      <input
+                        type="radio"
+                        name="analysisReplay"
+                        disabled={analysis.status !== 'completed'}
+                        checked={selectedSnapshotId === analysis.analysis_id}
+                        onChange={() => {
+                          if (analysis.status === 'completed') {
+                            setSelectedSnapshotId(analysis.analysis_id)
+                          }
+                        }}
+                      />
+                    </td>
                     <td style={{ padding: '12px', color: '#F1F5F9', fontFamily: 'monospace', fontSize: '12px' }}>
                       {analysis.analysis_id.substring(0, 8)}...
                     </td>
@@ -745,7 +1071,9 @@ export default function CausalDesign() {
                       </span>
                     </td>
                     <td style={{ padding: '12px', color: '#F1F5F9' }}>
-                      {analysis.delta_yen ? `¥${analysis.delta_yen.toLocaleString()}` : '-'}
+                      {analysis.delta_yen !== null && analysis.delta_yen !== undefined
+                        ? `¥${safeLocaleString(analysis.delta_yen)}`
+                        : '-'}
                     </td>
                     <td style={{ padding: '12px' }}>
                       {analysis.verdict ? (
@@ -759,186 +1087,118 @@ export default function CausalDesign() {
                       ) : '-'}
                     </td>
                     <td style={{ padding: '12px', color: '#94A3B8', fontSize: '13px' }}>
-                      {analysis.started_at ? new Date(analysis.started_at).toLocaleString('ja-JP') : '-'}
+                      {formatDateTime(analysis.started_at)}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ color: '#94a3b8', fontSize: '13px' }}>
+              {selectedSnapshotId
+                ? `選択中の分析 ID: ${selectedSnapshotId.slice(0, 8)}…`
+                : '分析を選択するとスナップショットを復元できます'}
+            </div>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setSelectedSnapshotId(null)}
+              disabled={!selectedSnapshotId}
+            >
+              クリア
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Recommended Policies */}
-      {currentAnalysis && currentAnalysis.status === 'completed' && (
+      {/* Recommended Strategy */}
+      {displayAnalysis && displayAnalysis.status === 'completed' && (
         <div className="card" style={{ marginTop: '24px' }}>
-          <div className="card-title">💡 Recommended Policies</div>
+          <div className="card-title">💡 Recommended Portfolio Strategy</div>
           <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '20px' }}>
-            ここが最終意思決定の着地点 - 分析結果に基づいた推奨ポリシー
+            当該分析の結果に基づき、実データ由来の KPI と推奨アクションを提示します。
           </p>
-
-          <div style={{ display: 'grid', gap: '16px' }}>
-            {/* Policy 1 - Primary Recommendation */}
-            <div style={{
-              padding: '20px',
-              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(5, 150, 105, 0.05) 100%)',
-              border: '2px solid #10b981',
-              borderRadius: '12px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '20px' }}>⭐</span>
-                    <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#10b981', margin: 0 }}>
-                      Primary Policy - Email Campaign Optimization
-                    </h3>
-                  </div>
-                  <p style={{ color: '#cbd5e1', fontSize: '14px', margin: 0 }}>
-                    Δ¥ = ¥{currentAnalysis.delta_yen?.toLocaleString() || '2,450,000'} (95% CI: ¥{(currentAnalysis.delta_yen_ci_low || 1850000).toLocaleString()} ~ ¥{(currentAnalysis.delta_yen_ci_high || 3105000).toLocaleString()})
-                  </p>
-                </div>
-                <span style={{
-                  padding: '6px 16px',
-                  background: '#10b981',
-                  color: '#fff',
-                  borderRadius: '20px',
-                  fontSize: '13px',
-                  fontWeight: '700'
-                }}>
-                  GO
-                </span>
-              </div>
-              <div style={{
-                padding: '12px 16px',
-                background: 'rgba(16, 185, 129, 0.1)',
-                borderRadius: '8px',
-                marginBottom: '12px'
-              }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>CAS Score</div>
-                    <div style={{ fontSize: '18px', fontWeight: '700', color: '#10b981' }}>0.87</div>
-                    <div style={{ fontSize: '11px', color: '#10b981' }}>High Confidence</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Risk Score</div>
-                    <div style={{ fontSize: '18px', fontWeight: '700', color: '#10b981' }}>0.12</div>
-                    <div style={{ fontSize: '11px', color: '#10b981' }}>Low Risk</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>ROI</div>
-                    <div style={{ fontSize: '18px', fontWeight: '700', color: '#10b981' }}>5.2x</div>
-                    <div style={{ fontSize: '11px', color: '#10b981' }}>Excellent</div>
-                  </div>
-                </div>
-              </div>
-              <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
-                <strong style={{ color: '#10b981' }}>Action:</strong> Deploy immediately with monitoring
-              </div>
-            </div>
-
-            {/* Policy 2 - Alternative */}
-            <div style={{
-              padding: '20px',
-              background: 'rgba(59, 130, 246, 0.05)',
-              border: '1px solid #334155',
-              borderRadius: '12px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#f1f5f9', margin: 0 }}>
-                      Alternative - SMS Campaign
-                    </h3>
-                  </div>
-                  <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
-                    Δ¥ = ¥1,200,000 (95% CI: ¥800,000 ~ ¥1,600,000)
-                  </p>
-                </div>
-                <span style={{
-                  padding: '6px 16px',
-                  background: '#f59e0b',
-                  color: '#fff',
-                  borderRadius: '20px',
-                  fontSize: '13px',
-                  fontWeight: '700'
-                }}>
-                  CANARY
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>CAS: <strong style={{ color: '#f59e0b' }}>0.68</strong> (Medium)</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>Risk: <strong style={{ color: '#f59e0b' }}>0.18</strong> (Medium)</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8' }}>ROI: <strong style={{ color: '#3b82f6' }}>3.1x</strong></div>
-                </div>
-              </div>
-              <div style={{ fontSize: '13px', color: '#94a3b8' }}>
-                <strong style={{ color: '#f59e0b' }}>Action:</strong> A/B test with 20% traffic first
-              </div>
-            </div>
-
-            {/* Policy 3 - Not Recommended */}
-            <div style={{
-              padding: '20px',
-              background: 'rgba(100, 116, 139, 0.05)',
-              border: '1px solid #334155',
-              borderRadius: '12px',
-              opacity: 0.7
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#94a3b8', margin: 0 }}>
-                      Social Media Campaign
-                    </h3>
-                  </div>
-                  <p style={{ color: '#64748b', fontSize: '14px', margin: 0 }}>
-                    Δ¥ = -¥500,000 (95% CI: -¥1,200,000 ~ ¥200,000)
-                  </p>
-                </div>
-                <span style={{
-                  padding: '6px 16px',
-                  background: '#ef4444',
-                  color: '#fff',
-                  borderRadius: '20px',
-                  fontSize: '13px',
-                  fontWeight: '700'
-                }}>
-                  NO-GO
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>CAS: <strong style={{ color: '#ef4444' }}>0.45</strong> (Low)</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>Risk: <strong style={{ color: '#ef4444' }}>0.35</strong> (High)</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>ROI: <strong style={{ color: '#ef4444' }}>-0.5x</strong></div>
-                </div>
-              </div>
-              <div style={{ fontSize: '13px', color: '#64748b' }}>
-                <strong style={{ color: '#ef4444' }}>Action:</strong> Do not deploy
-              </div>
-            </div>
-          </div>
-
           <div style={{
-            marginTop: '20px',
-            padding: '16px',
-            background: 'rgba(59, 130, 246, 0.1)',
-            borderRadius: '8px',
-            fontSize: '13px',
-            color: '#cbd5e1'
+            padding: '20px',
+            borderRadius: '16px',
+            border: '1px solid rgba(16,185,129,0.45)',
+            background: 'linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(15,118,110,0.04) 100%)'
           }}>
-            💡 <strong style={{ color: '#3b82f6' }}>Note:</strong> CAS (Causal Assurance Score) indicates causal quality -
-            ≥0.8 = High confidence, 0.6-0.8 = Medium confidence, &lt;0.6 = Low confidence (review diagnostics before deployment)
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ margin: 0, color: '#10b981', fontSize: '20px', fontWeight: 700 }}>
+                  Primary Portfolio – {selectedDatasetInfo?.name || 'Uploaded Dataset'}
+                </h3>
+                <div style={{ color: '#cbd5e1', fontSize: '14px', marginTop: '4px' }}>
+                  Δ¥ = ¥{safeLocaleString(displayAnalysis?.delta_yen)} （95% CI: ¥{safeLocaleString(displayAnalysis?.delta_yen_ci_low)} ~ ¥{safeLocaleString(displayAnalysis?.delta_yen_ci_high)}）
+                </div>
+              </div>
+              <span style={{
+                padding: '6px 16px',
+                borderRadius: '20px',
+                background: displayAnalysis.verdict === 'Go' ? '#10b981' : displayAnalysis.verdict === 'Canary' ? '#f59e0b' : '#ef4444',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: '13px'
+              }}>
+                {displayAnalysis.verdict?.toUpperCase()}
+              </span>
+            </div>
+            {!hasImpactMetrics && (
+              <div style={{
+                marginBottom: '16px',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: '1px dashed rgba(148,163,184,0.5)',
+                background: 'rgba(148,163,184,0.1)',
+                color: '#cbd5e1',
+                fontSize: '13px'
+              }}>
+                ⚠️ Impact metrics snapshot is missing for this analysis. Run the causal job again or wait for the worker to finish saving
+                diagnostics to `analysis_runs.impact_metrics`.
+              </div>
+            )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Estimated Cost</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: '#f1f5f9' }}>{formatYenShortOrDash(estimatedCost)}</div>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                  {hasImpactMetrics ? 'Campaign budget' : 'Snapshot not recorded'}
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Projected Conversion</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: '#10b981' }}>{formatPercentOrDash(projectedConversionRate)}</div>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>{formatPercentDeltaOrDash(conversionUplift)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Users Affected</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: '#f1f5f9' }}>{safeLocaleString(usersAffected)}</div>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>Treatment group</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>ROI</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: '#3b82f6' }}>
+                  {roiValue !== null ? `${roiValue.toFixed(1)}x` : '—'}
+                </div>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>Return on investment</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>CAS Score</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: casScore && casScore >= 0.8 ? '#10b981' : casScore && casScore >= 0.6 ? '#f59e0b' : '#ef4444' }}>
+                  {casScore ? casScore.toFixed(2) : '—'}
+                </div>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>{analysisDetails?.diagnostics?.quality_level || 'Awaiting diagnostics'}</div>
+              </div>
+            </div>
+            <div style={{ marginTop: '16px', fontSize: '13px', color: '#cbd5e1', lineHeight: 1.6 }}>
+              <strong style={{ color: '#10b981' }}>Action:</strong>{' '}
+              {displayAnalysis.verdict === 'Go'
+                ? '高い信頼度でプラス効果が見込めます。即時リリースし、7日間の KPI 監視を設定してください。'
+                : displayAnalysis.verdict === 'Canary'
+                  ? '限定トラフィックでの検証と診断結果のレビューを推奨します。'
+                  : '投資価値が低いかリスクが高いため、追加データや代替施策の検討が必要です。'}
+            </div>
           </div>
         </div>
       )}

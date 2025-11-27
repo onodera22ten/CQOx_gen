@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { I18nProvider } from './contexts/I18nContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import Layout from './components/Layout'
 import DecisionConsole from './pages/DecisionConsole'
@@ -12,27 +13,27 @@ import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { OAuthCallback } from './pages/OAuthCallback'
 
-// v1 Pages
-import DecisionConsoleV1 from './pages/DecisionConsoleV1'
-
 // v2 Pages
 import PolicyLabV2 from './pages/PolicyLabV2'
 import RecourseV2 from './pages/RecourseV2'
 import ExperimentDesignV2 from './pages/ExperimentDesignV2'
+import ExperimentStudio from './pages/ExperimentStudio'
+import GrowthStudio from './pages/GrowthStudio'
 import CustomerDigitalTwin from './pages/CustomerDigitalTwin'
 import PolicyExportGate from './pages/PolicyExportGate'
+import GovernanceCenter from './pages/GovernanceCenter'
 
 // Data Management
 import DatasetManagement from './pages/DatasetManagement'
 
 // Visualizations
-import Visualizations from './pages/Visualizations'
 
 // Demo - REMOVED (not in specification, production only)
 
 function App() {
   return (
     <BrowserRouter>
+      <I18nProvider>
       <AuthProvider>
         <Routes>
           {/* Public routes */}
@@ -48,11 +49,6 @@ function App() {
           }>
             <Route index element={<DecisionConsole />} />
             <Route path="console" element={<DecisionConsole />} />
-
-            {/* ===== v1 Routes ===== */}
-
-            {/* Decision Console v1 - Marketing-focused Δ¥ + Go/Canary/Hold */}
-            <Route path="decision-console-v1" element={<DecisionConsoleV1 />} />
 
             {/* Dataset Management */}
             <Route path="datasets" element={<DatasetManagement />} />
@@ -73,6 +69,20 @@ function App() {
               </ProtectedRoute>
             } />
 
+            {/* Experiment Studio - requires models:write permission */}
+            <Route path="experiment-studio" element={
+              <ProtectedRoute requiredPermission="models:write">
+                <ExperimentStudio />
+              </ProtectedRoute>
+            } />
+
+            {/* Growth & LTV Studio */}
+            <Route path="growth-studio" element={
+              <ProtectedRoute requiredPermission="models:read">
+                <GrowthStudio />
+              </ProtectedRoute>
+            } />
+
             {/* Portfolio - requires policies:read permission */}
             <Route path="portfolio" element={
               <ProtectedRoute requiredPermission="policies:read">
@@ -88,11 +98,6 @@ function App() {
             } />
 
             {/* Visualizations - 可視化ダッシュボード */}
-            <Route path="visualizations" element={
-              <ProtectedRoute requiredPermission="models:read">
-                <Visualizations />
-              </ProtectedRoute>
-            } />
 
             {/* Admin - requires admin role */}
             <Route path="admin" element={
@@ -137,9 +142,17 @@ function App() {
                 <PolicyExportGate />
               </ProtectedRoute>
             } />
+
+            {/* Governance Center - Safety Gate */}
+            <Route path="governance" element={
+              <ProtectedRoute requiredPermission="policies:read">
+                <GovernanceCenter />
+              </ProtectedRoute>
+            } />
           </Route>
         </Routes>
       </AuthProvider>
+      </I18nProvider>
     </BrowserRouter>
   )
 }

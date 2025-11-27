@@ -1,0 +1,10 @@
+apiVersion: 1
+
+users:
+  - name: CQOx Admin
+    email: admin@cqox.local
+    login: admin
+    password: admin
+    isAdmin: true
+    isDisabled: false
+

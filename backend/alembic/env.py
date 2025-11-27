@@ -1,9 +1,10 @@
 """
-Alembic environment configuration
+Alembic environment configuration (async-aware)
 """
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config
+import asyncio
 from sqlalchemy import pool
+from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 import sys
 from pathlib import Path
@@ -43,24 +44,29 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode."""
-    # Override the sqlalchemy.url with the one from settings (reads database_url env var)
+    """Run migrations in 'online' mode (async-friendly)."""
     configuration = config.get_section(config.config_ini_section, {})
     configuration["sqlalchemy.url"] = settings.database_url
 
-    connectable = engine_from_config(
+    connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+    async def _run_migrations():
+        async with connectable.connect() as connection:
+            await connection.run_sync(_run_sync_migrations)
+        await connectable.dispose()
 
-        with context.begin_transaction():
-            context.run_migrations()
+    asyncio.run(_run_migrations())
+
+
+def _run_sync_migrations(connection):
+    context.configure(connection=connection, target_metadata=target_metadata)
+
+    with context.begin_transaction():
+        context.run_migrations()
 
 
 if context.is_offline_mode():

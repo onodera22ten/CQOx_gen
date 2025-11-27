@@ -5,8 +5,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { getApiUrl } from '../utils/env';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_URL = getApiUrl();
 
 export const OAuthCallback: React.FC = () => {
   const [error, setError] = useState('');

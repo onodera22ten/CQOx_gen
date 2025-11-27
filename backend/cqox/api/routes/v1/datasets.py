@@ -6,7 +6,7 @@ v1 Datasets API Routes
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from uuid import uuid4
 from datetime import datetime, timedelta
 import logging
@@ -22,6 +22,86 @@ from cqox.auth.dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/datasets", tags=["v1-datasets"])
+
+
+def _resolve_dataset_file_path(dataset_file_path: str) -> str:
+    """
+    Resolve dataset path across local/dev containers.
+    """
+    import os
+
+    if not dataset_file_path:
+        raise FileNotFoundError("Dataset file path is empty")
+
+    if os.path.isabs(dataset_file_path) and os.path.exists(dataset_file_path):
+        return dataset_file_path
+
+    possible_paths = [
+        os.path.join("/app/data/uploads", os.path.basename(dataset_file_path)),
+        os.path.join("/home/hirokionodera/CQOx_gen/backend/data/uploads", os.path.basename(dataset_file_path)),
+        dataset_file_path
+    ]
+
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+
+    raise FileNotFoundError(f"Dataset file not found in any expected location: {dataset_file_path}")
+
+
+def _load_dataset_column(file_path: str, column_name: str):
+    """
+    Load a single column from dataset efficiently.
+    """
+    import pandas as pd
+    import os
+
+    _, ext = os.path.splitext(file_path.lower())
+
+    if ext in {'.parquet', '.pq'}:
+        df = pd.read_parquet(file_path, columns=[column_name])
+    elif ext in {'.csv', '.txt'}:
+        df = pd.read_csv(file_path, usecols=[column_name])
+    elif ext in {'.json'}:
+        df = pd.read_json(file_path)
+        if column_name not in df.columns:
+            raise KeyError(column_name)
+        df = df[[column_name]]
+    elif ext in {'.xls', '.xlsx'}:
+        df = pd.read_excel(file_path, usecols=[column_name])
+    else:
+        df = pd.read_csv(file_path, usecols=[column_name])
+
+    if column_name not in df.columns:
+        raise KeyError(column_name)
+
+    return df[column_name]
+
+
+def _summarize_treatment_series(series) -> Dict[str, Any]:
+    """Summarize class distribution for treatment validation."""
+    import pandas as pd
+
+    non_null_series = series.dropna()
+    unique_values = pd.unique(non_null_series)
+    unique_count = len(unique_values)
+    value_counts = pd.Series(non_null_series).value_counts().to_dict()
+
+    status = "ok"
+    if unique_count < 2:
+        status = "single_class"
+    elif unique_count > 2:
+        status = "multi_class"
+
+    preview_values = [str(v) for v in list(unique_values)[:10]]
+
+    return {
+        "status": status,
+        "unique_count": unique_count,
+        "unique_values": preview_values,
+        "non_null_count": int(non_null_series.shape[0]),
+        "value_counts": {str(k): int(v) for k, v in list(value_counts.items())[:10]}
+    }
 
 
 @router.post("/upload", response_model=DatasetUploadResponse, status_code=201)
@@ -163,7 +243,6 @@ async def get_dataset_columns(
     """
     from cqox.database.models import Dataset
     import pandas as pd
-    import os
     import uuid as uuid_lib
 
     try:
@@ -196,24 +275,7 @@ async def get_dataset_columns(
 
     # Read file to get column info
     try:
-        # Convert relative path to absolute if needed
-        file_path = dataset_file_path
-        if not os.path.isabs(file_path):
-            # Try multiple possible locations
-            possible_paths = [
-                os.path.join("/app/data/uploads", os.path.basename(file_path)),
-                os.path.join("/home/hirokionodera/CQOx_gen/backend/data/uploads", os.path.basename(file_path)),
-                file_path  # Try as-is
-            ]
-
-            file_path = None
-            for path in possible_paths:
-                if os.path.exists(path):
-                    file_path = path
-                    break
-
-            if not file_path:
-                raise FileNotFoundError(f"Dataset file not found in any expected location: {dataset_file_path}")
+        file_path = _resolve_dataset_file_path(dataset_file_path)
 
         # Read first few rows to get columns and infer types
         # Support multiple file formats
@@ -303,6 +365,53 @@ async def get_dataset_columns(
         raise HTTPException(status_code=500, detail=f"Failed to read dataset: {str(e)}")
 
 
+@router.get("/{dataset_id}/columns/{column_name}/treatment-summary")
+async def get_treatment_column_summary(
+    dataset_id: str,
+    column_name: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get summary stats for a potential treatment column.
+    """
+    from cqox.database.models import Dataset
+    import uuid as uuid_lib
+
+    try:
+        dataset_uuid = uuid_lib.UUID(dataset_id)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail="Invalid dataset ID format")
+
+    result = await db.execute(
+        select(Dataset).where(
+            Dataset.id == dataset_uuid,
+            Dataset.tenant_id == current_user.get("tenant_id", "default_tenant")
+        )
+    )
+    dataset = result.scalar_one_or_none()
+
+    if not dataset:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    if not dataset.file_path:
+        raise HTTPException(status_code=400, detail="File not yet uploaded")
+
+    try:
+        file_path = _resolve_dataset_file_path(dataset.file_path)
+        series = _load_dataset_column(file_path, column_name)
+        summary = _summarize_treatment_series(series)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Column not found: {column_name}")
+    except Exception as e:
+        logger.error(f"Failed to summarize treatment column: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to summarize column: {str(e)}")
+
+    return summary
+
+
 @router.post("/{dataset_id}/preview")
 async def preview_dataset(
     dataset_id: str,
@@ -342,4 +451,3 @@ async def preview_dataset(
         "schema": dataset.schema or {},
         "total_rows": dataset.row_count or 0
     }
-

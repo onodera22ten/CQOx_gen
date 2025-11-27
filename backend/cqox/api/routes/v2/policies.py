@@ -152,7 +152,7 @@ async def get_policy(
         
         if not row:
             raise HTTPException(status_code=404, detail="Policy not found")
-        
+
         config = json.loads(row[6]) if row[6] else {}
         
         policy = PolicyConfig(
@@ -174,7 +174,7 @@ async def get_policy(
             created_by=config.get("created_by"),
             status=row[5] or "draft"
         )
-        
+
         return policy
         
     except HTTPException:
@@ -212,7 +212,7 @@ async def list_policies(
         if status:
             query += " AND status = :status"
             params["status"] = status
-        
+
         if dataset_id:
             query += " AND config->>'dataset_id' = :dataset_id"
             params["dataset_id"] = dataset_id
@@ -293,7 +293,7 @@ async def run_offline_policy_learning(
         
         if not policy_row:
             raise HTTPException(status_code=404, detail="Policy not found")
-        
+
         policy_config = json.loads(policy_row[1]) if policy_row[1] else {}
         dataset_id = policy_config.get("dataset_id")
         
@@ -405,8 +405,8 @@ async def get_policy_run(
         row = result.fetchone()
         
         if not row:
-            raise HTTPException(status_code=404, detail="Run not found")
-        
+        raise HTTPException(status_code=404, detail="Run not found")
+
         # Parse JSONB fields
         frontier = json.loads(row[13]) if row[13] else None
         best_policy = json.loads(row[14]) if row[14] else None
@@ -434,8 +434,8 @@ async def get_policy_run(
             started_at=row[18],
             completed_at=row[19]
         )
-        
-        return run
+
+    return run
         
     except HTTPException:
         raise
@@ -461,9 +461,9 @@ async def delete_policy(
             {"policy_id": uuid.UUID(policy_id), "tenant_id": tenant_uuid}
         )
         if not policy_result.fetchone():
-            raise HTTPException(status_code=404, detail="Policy not found")
-        
-        # Check if policy is in use
+        raise HTTPException(status_code=404, detail="Policy not found")
+
+    # Check if policy is in use
         active_runs_result = await db.execute(
             text("""
                 SELECT COUNT(*) FROM offline_policy_runs
@@ -475,21 +475,21 @@ async def delete_policy(
         active_count = active_runs_result.scalar()
         
         if active_count > 0:
-            raise HTTPException(
-                status_code=409,
-                detail="Cannot delete policy with active learning runs"
-            )
-        
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete policy with active learning runs"
+        )
+
         # Delete policy
         await db.execute(
             text("DELETE FROM policies WHERE id = :policy_id AND tenant_id = :tenant_id"),
             {"policy_id": uuid.UUID(policy_id), "tenant_id": tenant_uuid}
         )
         await db.commit()
-        
-        logger.info(f"Deleted policy {policy_id}")
-        
-        return None
+
+    logger.info(f"Deleted policy {policy_id}")
+
+    return None
         
     except HTTPException:
         raise
@@ -523,7 +523,7 @@ async def execute_offline_learning(run_id: str, policy_id: str, db: AsyncSession
     from cqox.database.connection import async_session_factory
     
     async with async_session_factory() as session:
-        try:
+    try:
             # Update status to running
             await session.execute(
                 text("""
@@ -535,7 +535,7 @@ async def execute_offline_learning(run_id: str, policy_id: str, db: AsyncSession
             )
             await session.commit()
 
-            logger.info(f"Executing offline learning for run {run_id}")
+        logger.info(f"Executing offline learning for run {run_id}")
 
             # Get policy and run details
             policy_result = await session.execute(
@@ -562,42 +562,42 @@ async def execute_offline_learning(run_id: str, policy_id: str, db: AsyncSession
             risk_aversion = float(run_row[2])
             n_candidates = int(run_row[3])
 
-            # === DEMO: Generate synthetic data ===
-            # In production, load from dataset_id
-            np.random.seed(42)
-            n_samples = 1000
+        # === DEMO: Generate synthetic data ===
+        # In production, load from dataset_id
+        np.random.seed(42)
+        n_samples = 1000
 
-            # Generate features
+        # Generate features
             X = np.random.randn(n_samples, len(features) if features else 3)
 
-            # Generate treatment (observed)
-            # Propensity: e(x) = sigmoid(0.5 * x0 + 0.3)
-            propensity = 1 / (1 + np.exp(-(0.5 * X[:, 0] + 0.3)))
-            treatment = np.random.binomial(1, propensity)
+        # Generate treatment (observed)
+        # Propensity: e(x) = sigmoid(0.5 * x0 + 0.3)
+        propensity = 1 / (1 + np.exp(-(0.5 * X[:, 0] + 0.3)))
+        treatment = np.random.binomial(1, propensity)
 
-            # Generate outcome
-            # Y = 1.0 + 2.0 * x0 + 3.0 * treatment + noise
-            outcome = 1.0 + 2.0 * X[:, 0] + 3.0 * treatment + np.random.randn(n_samples)
+        # Generate outcome
+        # Y = 1.0 + 2.0 * x0 + 3.0 * treatment + noise
+        outcome = 1.0 + 2.0 * X[:, 0] + 3.0 * treatment + np.random.randn(n_samples)
 
-            # Create dataframe
-            dataset = pd.DataFrame({
-                'treatment': treatment,
-                'outcome': outcome,
-                'propensity': propensity
-            })
+        # Create dataframe
+        dataset = pd.DataFrame({
+            'treatment': treatment,
+            'outcome': outcome,
+            'propensity': propensity
+        })
 
             for i, feat in enumerate(features if features else ['x0', 'x1', 'x2']):
-                dataset[feat] = X[:, i]
+            dataset[feat] = X[:, i]
 
-            # === Create evaluator ===
-            evaluator = OffPolicyEvaluator(
-                propensity_model=None,  # Use pre-computed propensity
+        # === Create evaluator ===
+        evaluator = OffPolicyEvaluator(
+            propensity_model=None,  # Use pre-computed propensity
                 outcome_model=None
-            )
+        )
 
-            optimizer = PolicyOptimizer(evaluator)
+        optimizer = PolicyOptimizer(evaluator)
 
-            # === Run grid search over threshold policies ===
+        # === Run grid search over threshold policies ===
             feature = features[0] if features else 'x0'
 
             results = optimizer.grid_search_threshold(
@@ -644,9 +644,9 @@ async def execute_offline_learning(run_id: str, policy_id: str, db: AsyncSession
                     'estimated_value': best_result['expected_value'],
                     'estimated_risk': best_result['risk'],
                     'confidence_interval': [best_result['ci_lower'], best_result['ci_upper']],
-                    'std': best_result['std'],
-                    'utility': best_result['utility']
-                }
+                        'std': best_result['std'],
+                        'utility': best_result['utility']
+                    }
 
                 # Update run with results
                 await session.execute(
@@ -690,9 +690,9 @@ async def execute_offline_learning(run_id: str, policy_id: str, db: AsyncSession
                 await session.commit()
                 logger.error(f"No feasible policy found for run {run_id}")
 
-        except Exception as e:
-            logger.error(f"Error in offline learning run {run_id}: {e}", exc_info=True)
-            
+    except Exception as e:
+        logger.error(f"Error in offline learning run {run_id}: {e}", exc_info=True)
+
             await session.execute(
                 text("""
                     UPDATE offline_policy_runs

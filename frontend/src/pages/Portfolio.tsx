@@ -1,163 +1,204 @@
+/**
+ * Marketing Portfolio & ROI Page
+ * 仕様: Marketing Portfolio & ROI (portfolio).pdf に完全準拠
+ *
+ * 役割: 複数の候補施策から、どの組み合わせで予算を張るかを決めるC level向け画面
+ *
+ * 構成:
+ * 1. Recommended Portfolio Strategy カード（主役）
+ * 2. Pareto Frontier + Portfolio Contribution
+ * 3. Portfolio Policies Table（Include/Exclude/Test verdict付き）
+ * 4. Empty state（ダミーデータ完全削除、実データのみ表示）
+ */
+
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../utils/api'
-import EnhancedParetoChart from '../components/visualizations/EnhancedParetoChart'
+import { formatYenShort, formatYenMan } from '../utils/format'
 import { ContextBar } from '../components/ContextBar'
 import { DecisionSummaryCard } from '../components/DecisionSummaryCard'
-import { formatYenShort, formatYenMan } from '../utils/format'
+import EnhancedParetoChart from '../components/visualizations/EnhancedParetoChart'
+
+// ==================== Types ====================
+
+type PortfolioWindow = '14d' | '28d' | '56d'
 
 interface PortfolioSummary {
-  total_policies: number
-  total_incremental_profit: number
-  total_roi: number
-  by_channel: Record<string, { profit: number; roi: number }>
+  window: string
+  expectedDeltaYen: number
+  totalCostYen: number | null
+  meanCas: number
+  portfolioRisk: number
+  roi: number
+  selectedPolicyIds: string[]
 }
 
-export default function Portfolio() {
-  const [activeView, setActiveView] = useState<'overview' | 'frontier'>('overview')
+interface PortfolioPolicy {
+  id: string
+  name: string
+  datasetName: string
+  channel: string | null
+  segment: string | null
+  deltaYen: number
+  roi: number
+  risk: number
+  cas: number
+  verdict: 'include' | 'exclude' | 'test'
+}
 
-  const { data, isLoading, error} = useQuery<PortfolioSummary>({
-    queryKey: ['portfolio-summary'],
-    queryFn: async () => {
-      const response = await api.get<PortfolioSummary>('/api/portfolio/summary')
-      return response
-    },
+interface ParetoPoint {
+  portfolioId: string
+  risk: number
+  deltaYen: number
+  meanCas: number
+  isRecommended: boolean
+}
+
+// ==================== API Clients ====================
+
+const portfolioAPI = {
+  summary: async (window: PortfolioWindow): Promise<PortfolioSummary> => {
+    return await api.get<PortfolioSummary>(`/api/portfolio/summary?window=${window}`)
+  },
+  policies: async (window: PortfolioWindow): Promise<PortfolioPolicy[]> => {
+    return await api.get<PortfolioPolicy[]>(`/api/portfolio/policies?window=${window}`)
+  },
+  frontier: async (window: PortfolioWindow): Promise<ParetoPoint[]> => {
+    return await api.get<ParetoPoint[]>(`/api/portfolio/frontier?window=${window}`)
+  }
+}
+
+// ==================== Custom Hook ====================
+
+function usePortfolioData(window: PortfolioWindow) {
+  const summaryQuery = useQuery({
+    queryKey: ['portfolio-summary', window],
+    queryFn: () => portfolioAPI.summary(window),
+    staleTime: 30000
   })
 
-  const [selectedPolicy, setSelectedPolicy] = useState<string | null>('Policy E')
+  const policiesQuery = useQuery({
+    queryKey: ['portfolio-policies', window],
+    queryFn: () => portfolioAPI.policies(window),
+    staleTime: 30000
+  })
 
-  // Enhanced Pareto data with CAS scores and baseline comparison
-  const baselineProfit = 0
-  const baselineRisk = 0
+  const frontierQuery = useQuery({
+    queryKey: ['portfolio-frontier', window],
+    queryFn: () => portfolioAPI.frontier(window),
+    staleTime: 30000
+  })
 
-  const paretoData = [
-    {
-      name: 'Policy A',
-      profit: 1500000,
-      risk: 0.15,
-      cas: 0.75,
-      deltaProfit: 1500000,
-      deltaRisk: 0.15,
-      isParetoEfficient: false,
-      description: 'Email campaign targeting high-value customers with personalized offers',
-      targetChannel: 'Email',
-      targetSegment: 'High-value customers (top 20%)',
-      estimatedReach: 45000,
-      estimatedCost: 320000,
-      roi: 4.7
-    },
-    {
-      name: 'Policy B',
-      profit: 2800000,
-      risk: 0.25,
-      cas: 0.82,
-      deltaProfit: 2800000,
-      deltaRisk: 0.25,
-      isParetoEfficient: true,
-      description: 'Multi-channel campaign combining email, SMS, and push notifications',
-      targetChannel: 'Multi-channel',
-      targetSegment: 'Active users (last 30 days)',
-      estimatedReach: 120000,
-      estimatedCost: 850000,
-      roi: 3.3
-    },
-    {
-      name: 'Policy C',
-      profit: 1200000,
-      risk: 0.10,
-      cas: 0.68,
-      deltaProfit: 1200000,
-      deltaRisk: 0.10,
-      isParetoEfficient: false,
-      description: 'Conservative retention campaign for at-risk customers',
-      targetChannel: 'Email',
-      targetSegment: 'At-risk customers (churn score > 0.6)',
-      estimatedReach: 28000,
-      estimatedCost: 180000,
-      roi: 6.7
-    },
-    {
-      name: 'Policy D',
-      profit: 1800000,
-      risk: 0.30,
-      cas: 0.71,
-      deltaProfit: 1800000,
-      deltaRisk: 0.30,
-      isParetoEfficient: false,
-      description: 'Aggressive promotional campaign with high discount rates',
-      targetChannel: 'Push + In-app',
-      targetSegment: 'All active users',
-      estimatedReach: 180000,
-      estimatedCost: 1200000,
-      roi: 1.5
-    },
-    {
-      name: 'Policy E',
-      profit: 5200000,
-      risk: 0.12,
-      cas: 0.92,
-      deltaProfit: 5200000,
-      deltaRisk: 0.12,
-      isParetoEfficient: true,
-      description: 'AI-optimized personalization engine with dynamic content',
-      targetChannel: 'Email + Push',
-      targetSegment: 'ML-predicted high-propensity users',
-      estimatedReach: 95000,
-      estimatedCost: 980000,
-      roi: 5.3
-    },
-    {
-      name: 'Policy F',
-      profit: 800000,
-      risk: 0.08,
-      cas: 0.65,
-      deltaProfit: 800000,
-      deltaRisk: 0.08,
-      isParetoEfficient: true,
-      description: 'Low-risk test campaign for new product launch',
-      targetChannel: 'Email',
-      targetSegment: 'Early adopters segment',
-      estimatedReach: 15000,
-      estimatedCost: 120000,
-      roi: 6.7
-    },
-  ]
+  return { summaryQuery, policiesQuery, frontierQuery }
+}
 
-  const bestPolicy = paretoData.reduce((best, policy) =>
-    policy.profit / (1 + policy.risk) > best.profit / (1 + best.risk) ? policy : best
-  )
+// ==================== Main Component ====================
 
+export default function Portfolio() {
+  const [window, setWindow] = useState<PortfolioWindow>('28d')
+  const [verdictFilter, setVerdictFilter] = useState<string>('all')
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null)
+
+  const { summaryQuery, policiesQuery, frontierQuery } = usePortfolioData(window)
+
+  const isLoading = summaryQuery.isLoading || policiesQuery.isLoading || frontierQuery.isLoading
+  const hasError = summaryQuery.isError || policiesQuery.isError || frontierQuery.isError
+
+  // Loading state
   if (isLoading) {
     return (
       <div style={{ padding: '32px', color: '#cbd5e0' }}>
-        Loading portfolio data...
+        <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '24px', color: '#fff' }}>
+          Marketing Portfolio & ROI
+        </h1>
+        <div>Loading portfolio data...</div>
       </div>
     )
   }
 
-  if (error) {
+  // Error state
+  if (hasError) {
     return (
       <div style={{ padding: '32px' }}>
-        <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '24px', color: '#fff' }}>
           Marketing Portfolio & ROI
         </h1>
-        <div style={{ 
-          background: 'rgba(245, 87, 108, 0.1)', 
+        <div style={{
+          background: 'rgba(245, 87, 108, 0.1)',
           border: '1px solid rgba(245, 87, 108, 0.3)',
-          borderRadius: '8px',
-          padding: '16px',
+          borderRadius: '12px',
+          padding: '24px',
           color: '#f5576c'
         }}>
-          <div style={{ fontWeight: '600', marginBottom: '8px' }}>Portfolio data unavailable</div>
+          <div style={{ fontWeight: '600', marginBottom: '12px', fontSize: '18px' }}>
+            ポートフォリオ情報の取得に失敗しました
+          </div>
           <div style={{ fontSize: '14px', opacity: 0.9 }}>
-            This feature requires backend API implementation.
+            施策数が 1 件以下、データ欠損、または内部エラーの可能性があります。
+            施策設定とデータセット構成を確認してください。
           </div>
         </div>
       </div>
     )
   }
 
-  const selected = paretoData.find(p => p.name === selectedPolicy) || bestPolicy
+  const summary = summaryQuery.data!
+  const policies = policiesQuery.data ?? []
+  const frontier = frontierQuery.data ?? []
+
+  // Empty state - NO policies at all
+  if (policies.length === 0) {
+    return (
+      <div style={{ padding: '32px' }}>
+        <h1 style={{ fontSize: '32px', fontWeight: '700', marginBottom: '24px', color: '#fff' }}>
+          Marketing Portfolio & ROI
+        </h1>
+        <div style={{
+          background: 'rgba(59, 130, 246, 0.1)',
+          border: '1px solid rgba(59, 130, 246, 0.3)',
+          borderRadius: '16px',
+          padding: '48px 32px',
+          textAlign: 'center',
+          color: '#60a5fa',
+          marginTop: '48px'
+        }}>
+          <div style={{ fontSize: '64px', marginBottom: '24px' }}>📊</div>
+          <div style={{ fontSize: '28px', fontWeight: '700', marginBottom: '16px', color: '#fff' }}>
+            ポートフォリオを作成するには施策が必要です
+          </div>
+          <div style={{ fontSize: '16px', lineHeight: '1.6', marginBottom: '32px', maxWidth: '600px', margin: '0 auto 32px' }}>
+            まだ評価済みのマーケ施策がありません。<br />
+            「Policy Lab」で 2 件以上の施策を評価すると、この画面でポートフォリオ最適化が行えます。
+          </div>
+          <button
+            onClick={() => window.location.href = '/policy'}
+            style={{
+              padding: '16px 32px',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+              border: 'none',
+              borderRadius: '12px',
+              color: '#fff',
+              fontSize: '16px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)'
+            }}
+          >
+            Policy Lab を開く
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Filter policies by verdict
+  const filteredPolicies = verdictFilter === 'all'
+    ? policies
+    : policies.filter(p => p.verdict === verdictFilter)
+
+  // Top 5 contributors for bar chart
+  const includedPolicies = policies.filter(p => p.verdict === 'include').slice(0, 5)
+  const totalIncludedDelta = includedPolicies.reduce((sum, p) => sum + p.deltaYen, 0)
 
   return (
     <div style={{ padding: '24px' }}>
@@ -177,132 +218,57 @@ export default function Portfolio() {
         }}
       />
 
-      {/* Decision Summary Card */}
+      {/* Period Filter */}
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+        {(['14d', '28d', '56d'] as PortfolioWindow[]).map(w => (
+          <button
+            key={w}
+            onClick={() => setWindow(w)}
+            style={{
+              padding: '10px 20px',
+              background: window === w ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' : 'rgba(51, 65, 85, 0.5)',
+              border: 'none',
+              borderRadius: '8px',
+              color: '#fff',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+          >
+            Last {w}
+          </button>
+        ))}
+      </div>
+
+      {/* 主役：Recommended Portfolio Strategy Card */}
       <DecisionSummaryCard
         title="Recommended Portfolio Strategy"
         verdict="Go"
-        deltaYen={bestPolicy.deltaProfit}
-        casScore={bestPolicy.cas}
-        riskScore={bestPolicy.risk}
-        roi={bestPolicy.profit / 1000000} // Simplified ROI
-        reason={`Policy ${bestPolicy.name} offers the best risk-adjusted return with max Δ¥ subject to CAS≥0.8 & Risk≤0.3. This policy is on the Pareto frontier.`}
+        deltaYen={summary.expectedDeltaYen}
+        casScore={summary.meanCas}
+        riskScore={summary.portfolioRisk}
+        roi={summary.roi}
+        reason={`選択された ${summary.selectedPolicyIds.length} 件のポリシーが、CAS ≥ ${(summary.meanCas).toFixed(2)} & Risk ≤ ${(summary.portfolioRisk).toFixed(2)} の制約下で最も高い Δ¥ を提供します。このポートフォリオはPareto効率的です。`}
         recommendations={[
-          `Deploy ${bestPolicy.name} as the primary policy`,
-          `Monitor CAS score (currently ${bestPolicy.cas.toFixed(2)}) - maintain above 0.75`,
-          `Total portfolio Pareto-efficient policies: ${paretoData.filter(p => p.isParetoEfficient).length}`,
-          `Consider A/B testing with Policy ${paretoData.filter(p => p.isParetoEfficient && p.name !== bestPolicy.name)[0]?.name || 'B'} for validation`,
+          `選択ポリシー数: ${summary.selectedPolicyIds.length} / ${policies.length}`,
+          `Mean CAS Score: ${summary.meanCas.toFixed(2)} - ${summary.meanCas >= 0.8 ? 'High Confidence' : summary.meanCas >= 0.6 ? 'Medium Confidence' : 'Low Confidence'}`,
+          `Portfolio Risk: ${(summary.portfolioRisk * 100).toFixed(1)}% - ${summary.portfolioRisk < 0.15 ? 'Low Risk' : summary.portfolioRisk < 0.25 ? 'Medium Risk' : 'High Risk'}`,
+          `Total Budget: ${formatYenShort(summary.totalCostYen || 0)} （${formatYenMan(summary.totalCostYen || 0)}）`
         ]}
         onViewDetails={() => {
-          alert('Navigate to detailed diagnostics for ' + bestPolicy.name);
+          // Scroll to table
+          document.getElementById('portfolio-table')?.scrollIntoView({ behavior: 'smooth' })
         }}
       />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <p style={{ color: '#94a3b8', fontSize: '14px' }}>
-          Multi-objective optimization: {paretoData.length} policies analyzed
-        </p>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button
-            onClick={() => setActiveView('overview')}
-            style={{
-              padding: '10px 20px',
-              background: activeView === 'overview' ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' : 'rgba(51, 65, 85, 0.5)',
-              border: 'none',
-              borderRadius: '8px',
-              color: '#fff',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
-          >
-            📊 Overview
-          </button>
-          <button
-            onClick={() => setActiveView('frontier')}
-            style={{
-              padding: '10px 20px',
-              background: activeView === 'frontier' ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)' : 'rgba(51, 65, 85, 0.5)',
-              border: 'none',
-              borderRadius: '8px',
-              color: '#fff',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer'
-            }}
-          >
-            🎯 Pareto Frontier
-          </button>
-        </div>
-      </div>
-
-      <div className="grid">
-        <div className="card">
-          <div className="card-title">Total Policies</div>
-          <div style={{ fontSize: '36px', fontWeight: '700', color: '#2563eb' }}>
-            {data?.total_policies || 0}
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-title">Total Incremental Profit</div>
-          <div style={{ fontSize: '36px', fontWeight: '700', color: '#16a34a' }}>
-            ${((data?.total_incremental_profit || 0) / 1000000).toFixed(1)}M
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-title">Average ROI</div>
-          <div style={{ fontSize: '36px', fontWeight: '700', color: '#dc2626' }}>
-            {(data?.total_roi || 0).toFixed(1)}x
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-title">Performance by Channel</div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Channel</th>
-              <th>Incremental Profit</th>
-              <th>ROI</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(data?.by_channel || {}).map(([channel, metrics]: [string, any]) => (
-              <tr key={channel}>
-                <td style={{ textTransform: 'capitalize', fontWeight: '500' }}>{channel}</td>
-                <td>${(metrics.profit / 1000000).toFixed(1)}M</td>
-                <td>{metrics.roi.toFixed(1)}x</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {activeView === 'overview' ? (
-        <div className="card">
-          <div className="card-title">Performance by Channel</div>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Channel</th>
-                <th>Incremental Profit</th>
-                <th>ROI</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(data?.by_channel || {}).map(([channel, metrics]: [string, any]) => (
-                <tr key={channel}>
-                  <td style={{ textTransform: 'capitalize', fontWeight: '500' }}>{channel}</td>
-                  <td>${(metrics.profit / 1000000).toFixed(1)}M</td>
-                  <td>{metrics.roi.toFixed(1)}x</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
+      {/* 中段：Pareto Frontier + Portfolio Contribution */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '2fr 1fr',
+        gap: '24px',
+        marginBottom: '24px'
+      }}>
+        {/* Pareto Frontier Chart */}
         <div style={{
           background: '#1e293b',
           borderRadius: '16px',
@@ -310,293 +276,220 @@ export default function Portfolio() {
           border: '1px solid #334155'
         }}>
           <div style={{ marginBottom: '24px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '12px', color: '#fff' }}>
-              🎯 Multi-Objective Pareto Frontier
+            <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '8px', color: '#fff' }}>
+              Pareto Frontier (Profit vs Risk)
             </h2>
-            <p style={{ color: '#cbd5e1', fontSize: '14px' }}>
-              比較: 利益 vs リスク - パレート効率的なpolicy群を可視化
+            <p style={{ color: '#cbd5e1', fontSize: '13px' }}>
+              利益 vs リスク - Pareto効率的なポリシー群を可視化
             </p>
           </div>
 
-          <div style={{
-            background: 'rgba(59, 130, 246, 0.05)',
-            border: '1px solid rgba(59, 130, 246, 0.2)',
-            borderRadius: '12px',
-            padding: '20px',
-            marginBottom: '24px'
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '16px' }}>
-              <div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Total Policies Analyzed</div>
-                <div style={{ fontSize: '24px', fontWeight: '700', color: '#3b82f6' }}>
-                  {paretoData.length}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Pareto Efficient</div>
-                <div style={{ fontSize: '24px', fontWeight: '700', color: '#10b981' }}>
-                  {paretoData.filter((p, _i, arr) =>
-                    !arr.some(other => other.profit > p.profit && other.risk < p.risk)
-                  ).length}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '4px' }}>Best Profit/Risk Ratio</div>
-                <div style={{ fontSize: '24px', fontWeight: '700', color: '#f59e0b' }}>
-                  {Math.max(...paretoData.map(p => p.profit / (p.risk * 1000000))).toFixed(1)}
-                </div>
-              </div>
-            </div>
-
-            <div style={{
-              padding: '12px',
-              background: 'rgba(139, 92, 246, 0.1)',
-              borderRadius: '8px',
-              fontSize: '13px',
-              color: '#cbd5e1'
-            }}>
-              💡 <strong style={{ color: '#a78bfa' }}>パレート効率的なpolicy</strong>:
-              他のpolicyと比較して、利益を犠牲にせずにリスクを減らすことも、リスクを増やさずに利益を上げることもできないpolicy。
-              フロンティア上の点が最適なトレードオフを示します。
-            </div>
-          </div>
-
           <EnhancedParetoChart
-            policies={paretoData}
-            selectedPolicy={selectedPolicy}
-            onSelectPolicy={(policy) => setSelectedPolicy(policy.name)}
+            policies={policies.map(p => ({
+              name: p.name,
+              profit: p.deltaYen,
+              risk: p.risk,
+              cas: p.cas,
+              deltaProfit: p.deltaYen,
+              deltaRisk: p.risk,
+              isParetoEfficient: p.verdict === 'include',
+              description: p.segment || '',
+              targetChannel: p.channel || 'Multi-channel',
+              targetSegment: p.segment || '',
+              estimatedReach: 50000,
+              estimatedCost: (summary.totalCostYen || 0) / summary.selectedPolicyIds.length,
+              roi: p.roi,
+              analysisId: p.id
+            }))}
+            selectedPolicy={selectedPolicyId}
+            onSelectPolicy={(policy) => setSelectedPolicyId(policy.analysisId)}
           />
 
-          <div style={{ marginTop: '24px' }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#fff' }}>
-              Policy Details
-            </h3>
-            <div style={{ display: 'grid', gap: '12px' }}>
-              {paretoData
-                .sort((a, b) => b.profit - a.profit)
-                .map(policy => {
-                  const isPareto = !paretoData.some(other => other.profit > policy.profit && other.risk < policy.risk)
-                  return (
-                    <div
-                      key={policy.name}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '16px',
-                        background: isPareto ? 'rgba(16, 185, 129, 0.1)' : '#0f172a',
-                        border: `1px solid ${isPareto ? 'rgba(16, 185, 129, 0.3)' : '#1e293b'}`,
-                        borderRadius: '8px'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        {isPareto && <span style={{ fontSize: '20px' }}>⭐</span>}
-                        <div>
-                          <div style={{ fontWeight: '600', color: '#f1f5f9', fontSize: '15px' }}>
-                            {policy.name}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
-                            {isPareto ? 'Pareto Efficient' : 'Dominated'}
-                          </div>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '24px' }}>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '2px' }}>Profit</div>
-                          <div style={{ fontSize: '16px', fontWeight: '600', color: '#10b981' }}>
-                            ¥{(policy.profit / 1000).toFixed(0)}K
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '2px' }}>Risk</div>
-                          <div style={{ fontSize: '16px', fontWeight: '600', color: '#ef4444' }}>
-                            {(policy.risk * 100).toFixed(1)}%
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '2px' }}>Ratio</div>
-                          <div style={{ fontSize: '16px', fontWeight: '600', color: '#3b82f6' }}>
-                            {(policy.profit / (policy.risk * 1000000)).toFixed(1)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-            </div>
+          <div style={{
+            marginTop: '16px',
+            padding: '12px',
+            background: 'rgba(139, 92, 246, 0.1)',
+            borderRadius: '8px',
+            fontSize: '12px',
+            color: '#cbd5e1'
+          }}>
+            <strong style={{ color: '#a78bfa' }}>Pareto効率的なポリシー</strong>:
+            他のポリシーと比較して、利益を犠牲にせずにリスクを減らすことも、リスクを増やさずに利益を上げることもできないポリシー。
+            フロンティア上の点が最適なトレードオフを示します。
           </div>
+        </div>
 
-          {/* Selected Policy Details */}
-          {selected && (
-            <div style={{
-              marginTop: '24px',
-              background: '#1e293b',
-              borderRadius: '16px',
-              padding: '32px',
-              border: '2px solid #3b82f6'
-            }}>
-              <div style={{ marginBottom: '24px' }}>
-                <h2 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '8px', color: '#fff', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {selected.isParetoEfficient && <span style={{ fontSize: '24px' }}>⭐</span>}
-                  {selected.name} - Detailed Specifications
-                </h2>
-                <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
-                  {(selected as any).description}
-                </p>
-              </div>
+        {/* Portfolio Contribution (寄与度ランキング) */}
+        <div style={{
+          background: '#1e293b',
+          borderRadius: '16px',
+          padding: '32px',
+          border: '1px solid #334155'
+        }}>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px', color: '#fff' }}>
+            Portfolio Contribution
+          </h2>
+          <p style={{ color: '#cbd5e1', fontSize: '13px', marginBottom: '20px' }}>
+            寄与度ランキング（上位5件）
+          </p>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-                <div style={{
-                  padding: '16px',
-                  background: 'rgba(16, 185, 129, 0.1)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  borderRadius: '12px'
-                }}>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' }}>💰 EXPECTED PROFIT</div>
-                  <div style={{ fontSize: '28px', fontWeight: '700', color: '#10b981', marginBottom: '4px' }}>
-                    {formatYenShort(selected.profit)}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>
-                    {formatYenMan(selected.profit)}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#10b981' }}>
-                    ROI: {(selected as any).roi}x
-                  </div>
-                </div>
-
-                <div style={{
-                  padding: '16px',
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '12px'
-                }}>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' }}>⚠️ RISK SCORE</div>
-                  <div style={{ fontSize: '28px', fontWeight: '700', color: '#ef4444', marginBottom: '4px' }}>
-                    {(selected.risk * 100).toFixed(1)}%
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                    {selected.risk < 0.15 ? 'Low Risk' : selected.risk < 0.25 ? 'Medium Risk' : 'High Risk'}
-                  </div>
-                </div>
-
-                <div style={{
-                  padding: '16px',
-                  background: 'rgba(59, 130, 246, 0.1)',
-                  border: '1px solid rgba(59, 130, 246, 0.3)',
-                  borderRadius: '12px'
-                }}>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' }}>🎯 CAS SCORE</div>
-                  <div style={{ fontSize: '28px', fontWeight: '700', color: selected.cas >= 0.8 ? '#10b981' : selected.cas >= 0.6 ? '#f59e0b' : '#ef4444', marginBottom: '4px' }}>
-                    {selected.cas.toFixed(2)}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                    {selected.cas >= 0.8 ? 'High Confidence' : selected.cas >= 0.6 ? 'Medium Confidence' : 'Low Confidence'}
-                  </div>
-                </div>
-
-                <div style={{
-                  padding: '16px',
-                  background: 'rgba(245, 158, 11, 0.1)',
-                  border: '1px solid rgba(245, 158, 11, 0.3)',
-                  borderRadius: '12px'
-                }}>
-                  <div style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', fontWeight: '600' }}>👥 ESTIMATED REACH</div>
-                  <div style={{ fontSize: '28px', fontWeight: '700', color: '#f59e0b', marginBottom: '4px' }}>
-                    {((selected as any).estimatedReach / 1000).toFixed(0)}K
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                    users
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#f1f5f9' }}>
-                    📋 Campaign Details
-                  </h3>
-                  <div style={{ display: 'grid', gap: '12px' }}>
-                    <div style={{ padding: '12px', background: '#0f172a', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Target Channel</div>
-                      <div style={{ fontSize: '14px', color: '#f1f5f9', fontWeight: '600' }}>{(selected as any).targetChannel}</div>
-                    </div>
-                    <div style={{ padding: '12px', background: '#0f172a', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Target Segment</div>
-                      <div style={{ fontSize: '14px', color: '#f1f5f9', fontWeight: '600' }}>{(selected as any).targetSegment}</div>
-                    </div>
-                    <div style={{ padding: '12px', background: '#0f172a', borderRadius: '8px' }}>
-                      <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>Estimated Cost</div>
-                      <div style={{ fontSize: '14px', color: '#f1f5f9', fontWeight: '600' }}>{formatYenShort((selected as any).estimatedCost)}</div>
-                      <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{formatYenMan((selected as any).estimatedCost)}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#f1f5f9' }}>
-                    ⚡ Status & Recommendations
-                  </h3>
-                  <div style={{ padding: '16px', background: selected.isParetoEfficient ? 'rgba(16, 185, 129, 0.1)' : 'rgba(100, 116, 139, 0.1)', borderRadius: '12px', border: `1px solid ${selected.isParetoEfficient ? '#10b981' : '#64748b'}` }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '20px' }}>{selected.isParetoEfficient ? '✓' : '⚠️'}</span>
-                      <span style={{ fontSize: '14px', fontWeight: '700', color: selected.isParetoEfficient ? '#10b981' : '#94a3b8' }}>
-                        {selected.isParetoEfficient ? 'Pareto Efficient - Recommended' : 'Dominated - Not Optimal'}
+          {includedPolicies.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+              推奨ポリシーなし
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {includedPolicies.map((policy, idx) => {
+                const contribution = totalIncludedDelta > 0 ? (policy.deltaYen / totalIncludedDelta) * 100 : 0
+                return (
+                  <div key={policy.id} style={{ marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#f1f5f9' }}>
+                        {idx + 1}. {policy.name}
+                      </span>
+                      <span style={{ fontSize: '13px', color: '#10b981' }}>
+                        {formatYenShort(policy.deltaYen)}
                       </span>
                     </div>
-                    <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6', margin: 0 }}>
-                      {selected.isParetoEfficient
-                        ? 'This policy is on the Pareto frontier. No other policy offers strictly better profit-risk tradeoff. Recommended for deployment.'
-                        : 'This policy is dominated by other policies on the Pareto frontier. Consider alternatives with better profit-risk tradeoffs.'}
-                    </p>
+                    <div style={{
+                      height: '8px',
+                      background: '#0f172a',
+                      borderRadius: '4px',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${contribution}%`,
+                        background: 'linear-gradient(90deg, #10b981 0%, #3b82f6 100%)',
+                        transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                      {contribution.toFixed(1)}% of total
+                    </div>
                   </div>
-
-                  <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
-                    <button
-                      onClick={() => {
-                        // Navigate to diagnostics page for this policy
-                        window.location.href = '/diagnostics';
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '12px 24px',
-                        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        color: '#fff',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      📊 View Diagnostics
-                    </button>
-                    <button
-                      onClick={() => {
-                        window.location.href = '/export-gate';
-                      }}
-                      style={{
-                        flex: 1,
-                        padding: '12px 24px',
-                        background: selected.isParetoEfficient ? '#10b981' : 'rgba(100, 116, 139, 0.5)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        color: '#fff',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        cursor: selected.isParetoEfficient ? 'pointer' : 'not-allowed',
-                        opacity: selected.isParetoEfficient ? 1 : 0.5
-                      }}
-                      disabled={!selected.isParetoEfficient}
-                    >
-                      📤 Export Policy
-                    </button>
-                  </div>
-                </div>
-              </div>
+                )
+              })}
             </div>
           )}
         </div>
-      )}
+      </div>
+
+      {/* 下段：Portfolio Policies Table */}
+      <div id="portfolio-table" style={{
+        background: '#1e293b',
+        borderRadius: '16px',
+        padding: '32px',
+        border: '1px solid #334155'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#fff' }}>
+            Portfolio Policies
+          </h2>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {['all', 'include', 'test', 'exclude'].map(v => (
+              <button
+                key={v}
+                onClick={() => setVerdictFilter(v)}
+                style={{
+                  padding: '8px 16px',
+                  background: verdictFilter === v ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                  border: `1px solid ${verdictFilter === v ? '#3b82f6' : '#475569'}`,
+                  borderRadius: '6px',
+                  color: verdictFilter === v ? '#60a5fa' : '#94a3b8',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  textTransform: 'capitalize'
+                }}
+              >
+                {v === 'all' ? `All (${policies.length})` : `${v} (${policies.filter(p => p.verdict === v).length})`}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #334155' }}>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Policy Name</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Dataset</th>
+                <th style={{ padding: '12px 16px', textAlign: 'left', color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Channel</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right', color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Δ¥</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right', color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>ROI</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right', color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Risk</th>
+                <th style={{ padding: '12px 16px', textAlign: 'right', color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>CAS</th>
+                <th style={{ padding: '12px 16px', textAlign: 'center', color: '#94a3b8', fontSize: '12px', fontWeight: '600' }}>Verdict</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPolicies.map((policy, idx) => (
+                <tr
+                  key={policy.id}
+                  style={{
+                    borderBottom: '1px solid #334155',
+                    background: policy.verdict === 'include' ? 'rgba(16, 185, 129, 0.05)' : 'transparent',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setSelectedPolicyId(policy.id)}
+                >
+                  <td style={{ padding: '16px', color: '#f1f5f9', fontSize: '14px', fontWeight: '600' }}>
+                    {policy.verdict === 'include' && <span style={{ marginRight: '8px' }}>⭐</span>}
+                    {policy.name}
+                  </td>
+                  <td style={{ padding: '16px', color: '#cbd5e1', fontSize: '13px' }}>{policy.datasetName}</td>
+                  <td style={{ padding: '16px', color: '#cbd5e1', fontSize: '13px' }}>{policy.channel}</td>
+                  <td style={{ padding: '16px', color: '#10b981', fontSize: '14px', fontWeight: '600', textAlign: 'right' }}>
+                    {formatYenShort(policy.deltaYen)}
+                  </td>
+                  <td style={{ padding: '16px', color: '#f59e0b', fontSize: '14px', textAlign: 'right' }}>
+                    {policy.roi.toFixed(2)}x
+                  </td>
+                  <td style={{ padding: '16px', color: '#ef4444', fontSize: '14px', textAlign: 'right' }}>
+                    {(policy.risk * 100).toFixed(1)}%
+                  </td>
+                  <td style={{
+                    padding: '16px',
+                    color: policy.cas >= 0.8 ? '#10b981' : policy.cas >= 0.6 ? '#f59e0b' : '#ef4444',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    textAlign: 'right'
+                  }}>
+                    {policy.cas.toFixed(2)}
+                  </td>
+                  <td style={{ padding: '16px', textAlign: 'center' }}>
+                    <span style={{
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      background: policy.verdict === 'include'
+                        ? 'rgba(16, 185, 129, 0.15)'
+                        : policy.verdict === 'test'
+                          ? 'rgba(245, 158, 11, 0.15)'
+                          : 'rgba(100, 116, 139, 0.15)',
+                      color: policy.verdict === 'include'
+                        ? '#10b981'
+                        : policy.verdict === 'test'
+                          ? '#f59e0b'
+                          : '#64748b'
+                    }}>
+                      {policy.verdict.toUpperCase()}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {filteredPolicies.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '48px', color: '#64748b' }}>
+            No policies match the selected filter.
+          </div>
+        )}
+      </div>
     </div>
   )
 }

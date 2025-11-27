@@ -1,23 +1,26 @@
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { LanguageSwitcher } from './LanguageSwitcher'
+import { useI18n } from '../contexts/I18nContext'
 import './Layout.css'
 
 export default function Layout() {
   const location = useLocation()
   const { user, logout } = useAuth()
+  const { t } = useI18n()
 
   const navItems = [
-    { path: '/datasets', label: '📁 データ管理', permission: null, role: null },
-    { path: '/causal', label: '  └─ Causal Design', permission: 'models:read', role: null },
-    { path: '/console', label: 'Decision Console', permission: null, role: null },
-    { path: '/decision-console-v1', label: '[v1] マーケ施策判定', permission: null, role: null },
-    { path: '/policy', label: 'Policy Lab', permission: 'models:write', role: null },
-    { path: '/diagnostics', label: 'Diagnostics', permission: 'diagnostics:read', role: null },
-    { path: '/visualizations', label: '📊 Visualizations', permission: 'models:read', role: null },
-    { path: '/portfolio', label: 'Portfolio & ROI', permission: 'policies:read', role: null },
-    { path: '/digital-twin', label: '👥 Digital Twin', permission: 'models:read', role: null },
-    { path: '/export-gate', label: '📤 Export Gate', permission: 'policies:read', role: null },
-    { path: '/admin', label: 'Admin Panel', permission: null, role: 'admin' },
+    { path: '/datasets', labelKey: 'nav.datasets', icon: '📁', permission: null, role: null },
+    { path: '/causal', labelKey: 'nav.causal', indent: true, permission: 'models:read', role: null },
+    { path: '/console', labelKey: 'nav.console', permission: null, role: null },
+    { path: '/experiment-studio', labelKey: 'nav.experiment_studio', permission: 'models:write', role: null },
+    { path: '/growth-studio', labelKey: 'nav.growth_studio', permission: 'models:read', role: null },
+    { path: '/governance', labelKey: 'nav.governance', permission: 'policies:read', role: null },
+    { path: '/policy', labelKey: 'nav.policy', permission: 'models:write', role: null },
+    { path: '/portfolio', labelKey: 'nav.portfolio', permission: 'policies:read', role: null },
+    { path: '/digital-twin', labelKey: 'nav.digital_twin', icon: '👥', permission: 'models:read', role: null },
+    { path: '/export-gate', labelKey: 'nav.export', icon: '📤', permission: 'policies:read', role: null },
+    { path: '/admin', labelKey: 'nav.admin', permission: null, role: 'admin' },
   ]
 
   // Filter nav items based on user permissions/roles
@@ -89,19 +92,24 @@ export default function Layout() {
 
         <ul className="nav-list">
           {visibleNavItems.map((item) => (
-            <li key={item.path}>
+            <li key={item.path} style={item.indent ? { paddingLeft: '1rem' } : undefined}>
               <Link
                 to={item.path}
                 className={location.pathname === item.path ? 'active' : ''}
               >
-                {item.label}
+                {item.label
+                  ? item.label
+                  : `${item.icon ? `${item.icon} ` : ''}${t(item.labelKey as string)}`}
               </Link>
             </li>
           ))}
         </ul>
 
-        {/* Logout button */}
+        {/* Language Switcher & Logout */}
         <div style={{ marginTop: 'auto', padding: '1rem', borderTop: '1px solid #e5e7eb' }}>
+          <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'center' }}>
+            <LanguageSwitcher />
+          </div>
           <button
             onClick={handleLogout}
             style={{

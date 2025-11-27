@@ -10,8 +10,9 @@
  */
 
 import { mockPolicies, mockDatasets, delay } from '../api/mockBackend';
+import { getApiUrl } from './env';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = getApiUrl();
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'; // モックモードを有効化
 
 interface RequestOptions extends RequestInit {
@@ -58,7 +59,12 @@ class APIClient {
       }
 
       const data = await response.json();
-      localStorage.setItem('access_token', data.access_token);
+      if (data?.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+      }
+      if (data?.refresh_token) {
+        localStorage.setItem('refresh_token', data.refresh_token);
+      }
       return true;
     } catch (error) {
       console.error('Token refresh failed:', error);
@@ -129,6 +135,59 @@ class APIClient {
     await delay(200); // リアルなレスポンスタイムをシミュレート
 
     const method = options.method || 'GET';
+
+    if (endpoint.includes('/api/v1/decision-console/overview')) {
+      return {
+        total_delta_yen: 5200000,
+        avg_delta_yen_per_policy: 2600000,
+        mean_cas: 0.84,
+        cvar_yen_p10: -320000,
+        trend: [
+          { bucket: '2025-W45', delta_yen: 2200000 },
+          { bucket: '2025-W46', delta_yen: 3000000 },
+          { bucket: '2025-W47', delta_yen: 2400000 },
+          { bucket: '2025-W48', delta_yen: 3600000 }
+        ],
+        segment_portfolio: [
+          { segment_id: 'high_ltv', segment_label: 'High-LTV Email', population: 120000, total_delta_yen: 3200000, policy_count: 3, mean_cas: 0.9 },
+          { segment_id: 'mid_ltv', segment_label: 'Mid-LTV Push', population: 80000, total_delta_yen: 1200000, policy_count: 2, mean_cas: 0.78 }
+        ],
+        channel_performance: [
+          { channel: 'email', total_delta_yen: 4000000, roi: 5.2, mean_cas: 0.88 },
+          { channel: 'app_push', total_delta_yen: 1200000, roi: 3.1, mean_cas: 0.8 }
+        ],
+        decisions: [
+          {
+            id: 'analysis-001',
+            dataset_label: 'Web Traffic Oct 2024',
+            policy_name: 'Email Campaign Optimization',
+            channel: 'email',
+            segment_label: 'High-LTV users',
+            delta_yen: 2450000,
+            roi: 2.8,
+            cas_score: 0.87,
+            risk_score: 0.12,
+            verdict: 'go',
+            start_date: '2025-10-28',
+            end_date: '2025-11-04'
+          },
+          {
+            id: 'analysis-002',
+            dataset_label: 'App Push Sep 2024',
+            policy_name: 'Push Promo',
+            channel: 'app_push',
+            segment_label: 'Dormant users',
+            delta_yen: 950000,
+            roi: 1.8,
+            cas_score: 0.72,
+            risk_score: 0.35,
+            verdict: 'canary',
+            start_date: '2025-10-20',
+            end_date: '2025-10-27'
+          }
+        ]
+      } as T;
+    }
 
     // Decision Console endpoints
     if (endpoint.includes('/api/v1/console/delta-yen-summary')) {

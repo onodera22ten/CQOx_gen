@@ -45,10 +45,12 @@ async def upload_dataset(
     データファイルをアップロードしてデータセットを作成
 
     - 対応形式: CSV, JSON, Excel (.xlsx, .xls), Parquet
-    - 最大サイズ: 100MB
+    - 最大サイズ: 300MB
     - エンコーディング: UTF-8推奨
     - 処理フロー: アップロード → pandas読み込み → 前処理 → Parquet保存
     """
+
+    MAX_UPLOAD_MB = 300
 
     # ファイル形式チェック
     allowed_extensions = {'.csv', '.json', '.xlsx', '.xls', '.parquet', '.pq'}
@@ -64,11 +66,11 @@ async def upload_dataset(
         # ファイル内容を読み込み
         contents = await file.read()
         
-        # サイズチェック (100MB制限)
-        if len(contents) > 100 * 1024 * 1024:
+        # サイズチェック (300MB制限)
+        if len(contents) > MAX_UPLOAD_MB * 1024 * 1024:
             raise HTTPException(
                 status_code=400,
-                detail="ファイルサイズが100MBを超えています"
+                detail=f"ファイルサイズが{MAX_UPLOAD_MB}MBを超えています"
             )
         
         # ファイル形式に応じて読み込み
@@ -249,4 +251,3 @@ async def delete_dataset(
             status_code=500,
             detail=f"削除処理中にエラーが発生しました: {str(e)}"
         )
-

@@ -42,6 +42,15 @@ export interface DatasetColumns {
   total_rows: number;
 }
 
+export interface TreatmentSummary {
+  status: 'ok' | 'single_class' | 'multi_class' | 'unavailable';
+  unique_count: number;
+  unique_values: string[];
+  value_counts: Record<string, number>;
+  non_null_count: number;
+  reason?: string;
+}
+
 export const datasetsAPI = {
   /**
    * データセット一覧取得
@@ -65,6 +74,13 @@ export const datasetsAPI = {
   },
 
   /**
+   * 処置列の分布を取得
+   */
+  getTreatmentSummary: async (datasetId: string, columnName: string): Promise<TreatmentSummary> => {
+    return await api.get<TreatmentSummary>(`/api/v1/datasets/${datasetId}/columns/${encodeURIComponent(columnName)}/treatment-summary`);
+  },
+
+  /**
    * データセットアップロード開始
    */
   createUpload: async (request: DatasetUploadRequest): Promise<DatasetUploadResponse> => {
@@ -85,4 +101,3 @@ export const datasetsAPI = {
     await api.delete(`/api/v1/upload/datasets/${datasetId}`);
   },
 };
-

@@ -163,14 +163,14 @@ export default function ExperimentDesignV2() {
                     <td>{exp.primary_outcome}</td>
                     <td>{exp.arms.length} arms</td>
                     <td>
-                      {exp.total_sample_size?.toLocaleString() || 'N/A'}
+                      {exp.total_sample_size != null ? exp.total_sample_size.toLocaleString() : 'N/A'}
                       <div className="text-xs text-gray-500">
-                        ({exp.required_sample_size_per_arm?.toLocaleString() || 'N/A'}{' '}
+                        ({exp.required_sample_size_per_arm != null ? exp.required_sample_size_per_arm.toLocaleString() : 'N/A'}{' '}
                         per arm)
                       </div>
                     </td>
                     <td>
-                      {exp.expected_runtime_days
+                      {exp.expected_runtime_days != null
                         ? `${exp.expected_runtime_days.toFixed(1)} days`
                         : 'N/A'}
                     </td>
@@ -320,8 +320,9 @@ export default function ExperimentDesignV2() {
                 <div className="card-body">
                   <div className="text-sm text-gray-500">Sample Size per Arm</div>
                   <div className="text-3xl font-bold mt-2">
-                    {selectedExperiment.required_sample_size_per_arm?.toLocaleString() ||
-                      'N/A'}
+                    {selectedExperiment.required_sample_size_per_arm != null
+                      ? selectedExperiment.required_sample_size_per_arm.toLocaleString()
+                      : 'N/A'}
                   </div>
                 </div>
               </div>
@@ -329,7 +330,9 @@ export default function ExperimentDesignV2() {
                 <div className="card-body">
                   <div className="text-sm text-gray-500">Total Sample Size</div>
                   <div className="text-3xl font-bold mt-2">
-                    {selectedExperiment.total_sample_size?.toLocaleString() || 'N/A'}
+                    {selectedExperiment.total_sample_size != null
+                      ? selectedExperiment.total_sample_size.toLocaleString()
+                      : 'N/A'}
                   </div>
                 </div>
               </div>
@@ -420,7 +423,7 @@ export default function ExperimentDesignV2() {
                         • Larger effects can be detected with higher confidence
                       </li>
                       <li>
-                        • Sample size: {powerAnalysis.sample_size_per_arm.toLocaleString()}{' '}
+                        • Sample size: {powerAnalysis.sample_size_per_arm != null ? powerAnalysis.sample_size_per_arm.toLocaleString() : 'N/A'}{' '}
                         per arm
                       </li>
                     </ul>

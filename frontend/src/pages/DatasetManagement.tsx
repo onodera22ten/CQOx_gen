@@ -135,7 +135,7 @@ const UploadModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       formData.append('name', data.name);
       formData.append('description', data.description);
 
-      const response = await fetch('http://localhost:8000/api/v1/upload/dataset', {
+      const response = await fetch('/api/v1/upload/dataset', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
@@ -144,8 +144,17 @@ const UploadModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'アップロードに失敗しました');
+        const rawText = await response.text();
+        if (response.status === 413) {
+          throw new Error('ファイルサイズがサーバの許容上限を超えています。300MB 以下のファイルに分割するか、圧縮して再度お試しください。');
+        }
+        try {
+          const errorJson = JSON.parse(rawText);
+          throw new Error(errorJson.detail || errorJson.message || 'アップロードに失敗しました');
+        } catch {
+          const trimmed = rawText?.trim();
+          throw new Error(trimmed ? `アップロードに失敗しました: ${trimmed.slice(0, 200)}` : 'アップロードに失敗しました');
+        }
       }
 
       return response.json();
@@ -200,7 +209,7 @@ const UploadModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                   <>
                     <p className="text-sm text-gray-600">クリックしてファイルを選択</p>
                     <p className="text-xs text-gray-400 mt-1">対応形式: CSV, JSON, Excel (.xlsx/.xls), Parquet</p>
-                    <p className="text-xs text-gray-400">最大100MB まで対応</p>
+                    <p className="text-xs text-gray-400">最大300MB まで対応</p>
                   </>
                 )}
               </label>
@@ -299,4 +308,3 @@ const PreviewModal: React.FC<{ dataset: Dataset; onClose: () => void }> = ({ dat
 };
 
 export default DatasetManagement;
-

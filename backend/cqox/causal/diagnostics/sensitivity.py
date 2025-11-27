@@ -31,6 +31,8 @@ def rosenbaum_sensitivity_gamma(
 
     if gamma_values is None:
         gamma_values = np.linspace(1.0, 3.0, 21)
+    else:
+        gamma_values = np.asarray(gamma_values, dtype=float)
 
     # Wilcoxon signed-rank test statistic
     all_outcomes = np.concatenate([treated_outcomes, control_outcomes])

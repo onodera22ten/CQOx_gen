@@ -37,7 +37,14 @@ export const policiesAPI = {
     if (status) params.append('status', status);
     params.append('page', page.toString());
     params.append('page_size', pageSize.toString());
-    return await api.get<Policy[]>(`/api/v1/policies?${params}`);
+    const response = await api.get<any>(`/api/v1/policies?${params}`);
+    if (Array.isArray(response)) {
+      return response as Policy[];
+    }
+    if (response && Array.isArray(response.policies)) {
+      return response.policies as Policy[];
+    }
+    return [];
   },
 
   /**

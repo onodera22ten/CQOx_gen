@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     artifacts_dir: Path = base_dir / "artifacts"
     
     log_level: str = "INFO"
-    secret_key: str = "your-secret-key-here"
+    secret_key: str = "your-secret-key-change-in-production"
 
     # Wolfram
     wolfram_script_path: str = "wolframscript"
@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     # Memory management
     max_memory_per_worker_mb: int = 4096  # 4GB per worker
     enable_streaming_processing: bool = True  # Use streaming for large datasets
+
+    # Demo / mock flags
+    auto_seed_demo_policies: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

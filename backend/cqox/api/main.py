@@ -10,7 +10,7 @@ Layers:
 from fastapi import FastAPI, Request, Depends, HTTPException, status, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordRequestForm
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
@@ -19,9 +19,17 @@ import time
 import uuid
 
 from cqox.config import settings
-from cqox.api.routes import datasets, policies, causal, diagnostics, portfolio, console, upload, visualizations, admin
+
+# Default tenant (used when onboarding new users)
+DEFAULT_TENANT_ID = "00000000-0000-0000-0000-000000000001"
+from cqox.api.routes import datasets, policies, causal, diagnostics, portfolio, console, upload, visualizations, admin, docs
 from cqox.api.routes.v1 import v1_router
-from cqox.api.routes.v2 import v2_router
+from cqox.api.routes.v1 import console as v1_console
+try:
+    from cqox.api.routes.v2 import v2_router  # noqa: WPS433
+except Exception as exc:  # pragma: no cover - fail closed
+    v2_router = None
+    logger.error("Failed to load v2 router: %s", exc)
 from cqox.api.routes import auth as auth_routes
 from cqox.api.routes import datasets_v2, analysis_v2, decisions_v2
 
@@ -390,18 +398,7 @@ app.add_middleware(RateLimitMiddleware)
 # CORS middleware (must be last) - Allow all origins for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3004",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://localhost:3003",
-        "http://127.0.0.1:3004",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:3002",
-        "http://127.0.0.1:3003"
-    ],
+    allow_origins=["*"],  # 本番環境では全オリジンを許可
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -632,14 +629,37 @@ async def signup(request: SignupRequest):
         
         await db.execute(
             """
-            INSERT INTO users (id, email, name, password_hash, roles, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO users (
+                id,
+                email,
+                full_name,
+                hashed_password,
+                role,
+                is_active,
+                is_superuser,
+                tenant_id,
+                created_at,
+                updated_at
+            )
+            VALUES (
+                $1::uuid,
+                $2,
+                $3,
+                $4,
+                $5,
+                TRUE,
+                FALSE,
+                $6::uuid,
+                $7,
+                $8
+            )
             """,
             user_id,
             email,
             name or email.split('@')[0],
             password_hash,
-            ["viewer"],  # Default role
+            "viewer",
+            str(DEFAULT_TENANT_ID),
             now,
             now
         )
@@ -663,9 +683,11 @@ async def signup(request: SignupRequest):
 
 
 @auth_router.post("/token")
-async def login(request: LoginRequest):
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """
     Login with email/password (returns JWT tokens)
+    
+    OAuth2 compatible endpoint (accepts form data: username, password)
     
     Demo users:
     - admin@cqox.local / admin123 (admin role)
@@ -673,8 +695,8 @@ async def login(request: LoginRequest):
     - viewer@cqox.local / viewer123 (viewer role)
     """
     jwt_manager = get_jwt_manager()
-    email = request.email
-    password = request.password
+    email = form_data.username  # OAuth2 uses 'username' field
+    password = form_data.password
 
     if not email or not password:
         raise HTTPException(
@@ -682,36 +704,109 @@ async def login(request: LoginRequest):
             detail="Invalid credentials"
         )
 
+    # Demo users for fallback authentication
+    demo_users = {
+        "admin@cqox.com": {
+            "password": "admin_password_change_me",
+            "name": "Admin User",
+            "roles": ["admin", "analyst", "viewer"],
+            "id": "admin_user"
+        },
+        "admin@cqox.local": {
+            "password": "admin123",
+            "name": "Admin Demo",
+            "roles": ["admin", "analyst", "viewer"],
+            "id": "admin_demo"
+        },
+        "analyst@cqox.local": {
+            "password": "analyst123",
+            "name": "Analyst Demo",
+            "roles": ["analyst", "viewer"],
+            "id": "analyst_demo"
+        },
+        "viewer@cqox.local": {
+            "password": "viewer123",
+            "name": "Viewer Demo",
+            "roles": ["viewer"],
+            "id": "viewer_demo"
+        }
+    }
+    
     try:
         # Try to verify against database
         db = await get_postgres_client()
         user = await db.fetchrow(
-            "SELECT id, email, name, password_hash, roles FROM users WHERE email = $1 AND deleted_at IS NULL",
-            email
+            '''
+            SELECT
+                id,
+                email,
+                COALESCE(full_name, email) AS name,
+                password_hash AS password_hash,
+                COALESCE(roles, ARRAY['viewer']) AS roles,
+                COALESCE(tenant_id, $2::uuid) AS tenant_id
+            FROM users
+            WHERE email = $1
+            ''',
+            email,
+            DEFAULT_TENANT_ID
         )
         
         if user and jwt_manager.verify_password(password, user["password_hash"]):
+            tenant_id = str(user["tenant_id"] or DEFAULT_TENANT_ID)
             # Database authentication successful
             access_token = jwt_manager.create_access_token(
-                user_id=user["id"],
+                user_id=str(user["id"]),
                 email=user["email"],
-                roles=user["roles"]
+                roles=user["roles"],
+                additional_claims={"tenant_id": tenant_id}
             )
             
             refresh_token = jwt_manager.create_refresh_token(
-                user_id=user["id"],
-                email=user["email"]
+                user_id=str(user["id"]),
+                email=user["email"],
+                additional_claims={"tenant_id": tenant_id}
             )
+            
+            logger.info(f"✅ Database authentication successful: {email}")
             
             return {
                 "access_token": access_token,
                 "refresh_token": refresh_token,
                 "token_type": "bearer",
                 "user": {
-                    "id": user["id"],
+                    "id": str(user["id"]),
                     "email": user["email"],
                     "name": user["name"],
                     "roles": user["roles"]
+                }
+            }
+        elif email in demo_users and password == demo_users[email]["password"]:
+            # Fallback: Demo mode authentication
+            demo_user = demo_users[email]
+            access_token = jwt_manager.create_access_token(
+                user_id=demo_user["id"],
+                email=email,
+                roles=demo_user["roles"],
+                additional_claims={"tenant_id": DEFAULT_TENANT_ID}
+            )
+            
+            refresh_token = jwt_manager.create_refresh_token(
+                user_id=demo_user["id"],
+                email=email,
+                additional_claims={"tenant_id": DEFAULT_TENANT_ID}
+            )
+            
+            logger.info(f"✅ Demo mode authentication successful: {email}")
+            
+            return {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "user": {
+                    "id": demo_user["id"],
+                    "email": email,
+                    "name": demo_user["name"],
+                    "roles": demo_user["roles"]
                 }
             }
         else:
@@ -720,58 +815,81 @@ async def login(request: LoginRequest):
                 detail="Invalid email or password"
             )
             
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.warning(f"Database authentication failed, falling back to demo mode: {e}")
+        logger.warning(f"Database error, checking demo credentials: {e}")
         
-        # Fallback: Demo mode - accept any credentials
-        access_token = jwt_manager.create_access_token(
-            user_id="demo_user",
-            email=email,
-            roles=["analyst", "viewer"]
-        )
-        
-        refresh_token = jwt_manager.create_refresh_token(
-            user_id="demo_user",
-            email=email
-        )
-        
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "user": {
-                "id": "demo_user",
-                "email": email,
-                "name": "Demo User",
-                "roles": ["analyst", "viewer"]
+        # Fallback to demo mode if database is unavailable
+        if email in demo_users and password == demo_users[email]["password"]:
+            demo_user = demo_users[email]
+            access_token = jwt_manager.create_access_token(
+                user_id=demo_user["id"],
+                email=email,
+                roles=demo_user["roles"]
+            )
+            
+            refresh_token = jwt_manager.create_refresh_token(
+                user_id=demo_user["id"],
+                email=email
+            )
+            
+            logger.info(f"✅ Demo mode authentication (fallback): {email}")
+            
+            return {
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "user": {
+                    "id": demo_user["id"],
+                    "email": email,
+                    "name": demo_user["name"],
+                    "roles": demo_user["roles"]
+                }
             }
-        }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication failed. Database unavailable."
+            )
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
 
 
 @auth_router.post("/refresh")
-async def refresh_token(refresh_token: str):
-    """Refresh access token using refresh token"""
+async def refresh_token(request: RefreshRequest):
+    """Refresh access/refresh token pair."""
     jwt_manager = get_jwt_manager()
 
     try:
-        token_data = jwt_manager.verify_token(refresh_token)
+        token_data = jwt_manager.verify_token(request.refresh_token)
 
         if token_data.type != "refresh":
-            raise HTTPException(status_code=400, detail="Invalid token type")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid token type")
 
-        # Create new access token
         new_access_token = jwt_manager.create_access_token(
             user_id=token_data.sub,
             email=token_data.email,
             roles=token_data.roles
         )
 
+        new_refresh_token = jwt_manager.create_refresh_token(
+            user_id=token_data.sub,
+            email=token_data.email
+        )
+
         return {
             "access_token": new_access_token,
+            "refresh_token": new_refresh_token,
             "token_type": "bearer"
         }
 
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning(f"Refresh token validation failed: {exc}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token"
@@ -799,10 +917,10 @@ app.include_router(auth_routes.router)
 app.include_router(datasets_v2.router, prefix=f"{settings.api_prefix}")
 
 # Include new SQLAlchemy-based analysis router (v2)
-app.include_router(analysis_v2.router, prefix="/api/v1")
+app.include_router(analysis_v2.router, prefix="/api/v2")
 
 # Include new SQLAlchemy-based decisions router (v2)
-app.include_router(decisions_v2.router, prefix=f"{settings.api_prefix}")
+app.include_router(decisions_v2.router, prefix="/api/v2")
 
 
 # ============================================================================
@@ -815,13 +933,18 @@ app.include_router(policies.router, prefix=f"{settings.api_prefix}/policies", ta
 app.include_router(causal.router, prefix=f"{settings.api_prefix}/causal", tags=["causal"])
 app.include_router(diagnostics.router, prefix=f"{settings.api_prefix}/diagnostics", tags=["diagnostics"])
 app.include_router(portfolio.router, prefix=f"{settings.api_prefix}/portfolio", tags=["portfolio"])
-app.include_router(console.router, prefix=f"{settings.api_prefix}/console", tags=["console"])
+app.include_router(console.router, prefix=f"{settings.api_prefix}/console", tags=["console"])  # Viz.pdf仕様 - Global Growth Console
+app.include_router(v1_console.decision_console_router)  # 後方互換性: /decision-console/overview (修正.pdf仕様)
 app.include_router(upload.router, prefix=f"{settings.api_prefix}/upload", tags=["upload"])
 app.include_router(visualizations.router, prefix=f"{settings.api_prefix}/visualizations", tags=["visualizations"])
 app.include_router(admin.router, prefix=f"{settings.api_prefix}", tags=["admin"])
+app.include_router(docs.router)
 
-# Include v2 API router (Policy Lab, Recourse, Experiment Design)
-app.include_router(v2_router, prefix=f"{settings.api_prefix}")
+# Include v2 API router (Multi-Arm, Experiments, Growth, Governance)
+if v2_router is not None:
+    app.include_router(v2_router, prefix=f"{settings.api_prefix}/v2")
+else:
+    logger.warning("v2 router disabled due to import error; continuing with core routes only.")
 
 # Include v1 API routers (Datasets, Policies, Analysis, DecisionCard, Console)
 app.include_router(v1_router)

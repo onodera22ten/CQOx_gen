@@ -62,12 +62,15 @@ def qini_curve_data(
     """
     logger.info("Calculating Qini curve")
 
+    treatment_array = np.asarray(treatment)
+    y_array = np.asarray(y)
+
     # Sort by CATE (descending)
     sorted_idx = np.argsort(-cate)
 
     cate_sorted = cate[sorted_idx]
-    treatment_sorted = treatment.values[sorted_idx]
-    y_sorted = y.values[sorted_idx]
+    treatment_sorted = treatment_array[sorted_idx]
+    y_sorted = y_array[sorted_idx]
 
     n = len(cate)
     fractions = np.linspace(0, 1, 21)

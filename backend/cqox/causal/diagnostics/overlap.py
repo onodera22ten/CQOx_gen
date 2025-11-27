@@ -3,7 +3,7 @@ Overlap/Positivity diagnostics
 """
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from sklearn.linear_model import LogisticRegression
 from loguru import logger
 
@@ -32,7 +32,8 @@ def overlap_test(
     X: pd.DataFrame,
     treatment: pd.Series,
     min_ps: float = 0.1,
-    max_ps: float = 0.9
+    max_ps: float = 0.9,
+    threshold: Optional[float] = None
 ) -> Tuple[bool, Dict[str, Any]]:
     """
     Test overlap/positivity assumption
@@ -42,11 +43,18 @@ def overlap_test(
         treatment: Treatment assignment
         min_ps: Minimum acceptable propensity score
         max_ps: Maximum acceptable propensity score
+        threshold: Optional symmetric threshold (e.g. 0.05 -> [0.05, 0.95])
 
     Returns:
         (passed, report)
     """
     logger.info("Running overlap test")
+
+    if threshold is not None:
+        if not 0 < threshold < 0.5:
+            raise ValueError("threshold must be between 0 and 0.5")
+        min_ps = threshold
+        max_ps = 1 - threshold
 
     ps = estimate_propensity_scores(X, treatment)
 

@@ -1,0 +1,7 @@
+[
+  {"user_id": 1, "treatment": 1, "outcome": 150.5, "age": 25, "revenue": 1000},
+  {"user_id": 2, "treatment": 0, "outcome": 120.3, "age": 30, "revenue": 800},
+  {"user_id": 3, "treatment": 1, "outcome": 180.2, "age": 28, "revenue": 1200},
+  {"user_id": 4, "treatment": 0, "outcome": 95.8, "age": 35, "revenue": 600},
+  {"user_id": 5, "treatment": 1, "outcome": 200.0, "age": 22, "revenue": 1500}
+]
