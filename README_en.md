@@ -11,7 +11,79 @@
 
 ---
 
-## 1. Why CQOx exists
+## 1. Why CQOx exists – The Complete Storyline
+
+### What CQOx Is
+
+**CQOx is not a collection of separate features. It is a complete end-to-end storyline** that answers a single business question:
+
+> **"Which intervention, to whom, and how much should we deploy?"**
+> **（どの施策を、誰に、どれだけやるか）**
+
+From CSV upload to final export, CQOx guides you through nine integrated steps:
+
+#### ① Datasets: Upload and Scan
+Upload your CSV data (customer IDs, events, features, outcomes). CQOx automatically scans column types, detects treatment/outcome candidates, and validates data quality.
+
+#### ② Causal Design: Define the Intervention
+Select treatment column (e.g., "received_email"), outcome column (e.g., "purchase_amount"), and choose from 7 causal estimators (DR, IPW, DiD, IV, CF, SCM, RD) based on your data structure.
+
+#### ③ Diagnostics: Run Inference and Calculate CAS
+CQOx runs causal inference, computes **incremental profit (Δ¥)**, and generates a **Causal Assurance Score (CAS)** from 0 to 1. CAS aggregates 20+ diagnostic checks (overlap, balance, sensitivity, refutation tests) to quantify confidence in the result.
+
+#### ④ Policies: Organize Results into Decision Units
+Every analysis becomes a **Policy Card** containing:
+- Δ¥ (incremental profit)
+- ROI (return on investment)
+- Risk (CVaR, variance)
+- CAS (quality score)
+- **Verdict: GO / CANARY / HOLD**
+
+Policies are the core decision units that marketers and executives act on.
+
+#### ⑤ Decision Console: Executive Dashboard
+A unified dashboard showing:
+- **Total Δ¥** across all policies
+- **Mean CAS** (average quality)
+- **CVaR** (worst 10% tail risk)
+- Policy cards ranked by impact
+
+This is where CMOs and growth teams make deployment decisions.
+
+#### ⑥ Portfolio & ROI: Optimize Policy Combinations
+Not all policies can be deployed simultaneously (budget constraints, audience overlap, cannibalization). CQOx computes the **Pareto Frontier** – optimal policy combinations that maximize:
+- Profit (Δ¥)
+- Risk (CVaR)
+- Quality (CAS)
+
+You get recommendations like: "Deploy policies #1, #5, #8 together for maximum ROI under budget constraint."
+
+#### ⑦ Digital Twin: Simulate Before Deployment
+Before rolling out to real customers, use **Digital Twin** to simulate persona-level responses:
+- "What happens if we send 20% discount to high-value dormant users?"
+- "How will weekend shoppers respond to LINE push notifications?"
+
+This prevents costly mistakes and refines targeting.
+
+#### ⑧ Experiment Studio & Governance Center: Safety Checks
+Before final deployment, enforce quality gates:
+- **Fairness**: Check for discriminatory effects across sensitive attributes (age, gender, region)
+- **Data Quality**: Ensure sufficient sample size, no data leaks
+- **Frequency Caps**: Prevent over-exposure (e.g., max 10 emails/month)
+
+Policies that fail these checks are blocked from export.
+
+#### ⑨ Export Gate: Push to Production
+Export approved policies as JSON/CSV to external systems:
+- Marketing Automation (MA) tools (Salesforce, Marketo, Braze)
+- CDPs (Segment, mParticle)
+- Data warehouses (BigQuery, Snowflake)
+
+**This is the complete storyline. Each module serves a specific purpose in the journey from data to decision.**
+
+---
+
+### Why This Matters
 
 Most marketing analytics tools stop at:
 
@@ -32,12 +104,7 @@ Top companies (Google, Meta, Netflix, Amazon, WPP, BCG, Accenture) build interna
 3. **Portfolio optimization** (profit vs risk, CVaR)
 4. **Governance** (fairness, exposure caps, quality gates)
 
-CQOx packages these patterns into a single product that:
-
-- Ingests your **CSV or table extracts**
-- Runs **causal estimators & diagnostics**
-- Surfaces **decision-ready views** for marketers and executives
-- Enforces **governance policies** before anything ships to customers
+**CQOx packages these patterns into a single product with a complete storyline** – not scattered features, but a unified journey from CSV upload to production deployment.
 
 ---
 
@@ -105,207 +172,292 @@ flowchart TD
 
 ---
 
-## 4. Main modules
+## 4. Main Modules: The Complete User Journey
 
 ### 4.1 Datasets & Causal Design
 
-**Screenshots:**
+<img src="Picture/Screenshot%20from%202025-11-27 17-59-03.png" alt="Image 1" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-38-40.png" alt="Dataset Upload" width="800"/>
-*Dataset management page with upload button*
+<img src="Picture/Screenshot%20from%202025-11-27 16-38-40.png" alt="Image 2" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-38-59.png" alt="Causal Design" width="800"/>
-*Causal Design & Evaluation page - select dataset, scenario, target metric*
+<img src="Picture/Screenshot%20from%202025-11-27 16-38-59.png" alt="Image 3" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-39-56.png" alt="Analysis Result" width="800"/>
-*Analysis Result showing GO verdict with Expected Δ¥: +¥133,177, CAS Score: 0.15*
+<img src="Picture/Screenshot%20from%202025-11-27 16-39-56.png" alt="Image 4" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-40-16.png" alt="S0 vs S1 Comparison" width="800"/>
-*Baseline (S0) vs Treatment (S1) scenario comparison*
+This is where your causal journey begins. Upload CSV data containing customer IDs, treatment indicators, and outcomes. CQOx automatically scans columns, detects data types, and suggests treatment/outcome pairs. You configure the causal design by selecting:
+- **Treatment column**: The intervention (e.g., "received_email", "discount_applied")
+- **Outcome column**: What you want to measure (e.g., "purchase_amount", "conversion")
+- **Estimator**: Choose from DR, IPW, DiD, IV, CF, SCM, or RD based on your data structure
+- **Covariates**: Features used for adjustment (age, purchase history, engagement metrics)
 
-**Purpose**: Upload data, configure causal design, run analysis, get GO/CANARY/HOLD verdict.
+After configuration, CQOx runs the analysis and returns:
+- **Incremental profit (Δ¥)**: How much revenue the intervention generated
+- **CAS Score**: Causal Assurance Score (0-1 quality metric)
+- **Verdict**: GO (high confidence), CANARY (medium confidence), or HOLD (needs more data)
 
-**Key Features**:
-- Auto-detect treatment/outcome columns
-- 7 estimators (DR, IPW, DiD, IV, CF, SCM, RD)
-- Causal Assurance Score (CAS) calculation
+**Key Diagnostics:**
+- **Dataset Management View**: Shows all uploaded datasets with row counts, column counts, upload timestamps, and data quality indicators. Allows quick access to previously uploaded data and tracks data lineage.
+- **Causal Design Interface**: Provides treatment/outcome selection dropdowns, estimator choice with guidance on which method suits your data, and covariate selection with automatic feature detection.
+- **Analysis Results Summary**: Displays GO/CANARY/HOLD verdict with color-coded risk levels, expected Δ¥ with confidence intervals, CAS score breakdown showing which quality checks passed/failed, and baseline vs treatment comparison metrics.
+- **Scenario Comparison (S0 vs S1)**: Side-by-side comparison of baseline scenario (S0) and treatment scenario (S1), showing differences in key metrics, distribution shifts, and effect heterogeneity across segments.
 
 ---
 
 ### 4.2 Diagnostics & Quality Assurance
 
-**Screenshots:**
+<img src="Picture/Screenshot%20from%202025-11-27 16-40-49.png" alt="Image 5" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-40-49.png" alt="Diagnostics Overview" width="800"/>
-*Diagnostics & Audit page with CAS Score 0.15 (LOW quality)*
+<img src="Picture/Screenshot%20from%202025-11-27 16-41-00.png" alt="Image 6" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-41-00.png" alt="Quality Indicators" width="800"/>
-*Key Quality Indicators: Data Quality (SMD 2.541), Statistical Power, Effect Reliability, Model Performance*
+<img src="Picture/Screenshot%20from%202025-11-27 16-40-16.png" alt="Image 7" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-41-31.png" alt="Overlap Diagnostics" width="800"/>
-*Overlap/Positivity Diagnostics with Propensity Score Distribution*
+<img src="Picture/Screenshot%20from%202025-11-27 16-41-31.png" alt="Image 8" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-41-50.png" alt="Common Support Region" width="800"/>
-*Common Support Region showing overlap between treatment and control groups*
+<img src="Picture/Screenshot%20from%202025-11-27 16-41-50.png" alt="Image 9" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-42-09.png" alt="Balance Diagnostics" width="800"/>
-*Covariate Balance Diagnostics with Max SMD: 2.541, Balanced Covariates: 8/8*
+<img src="Picture/Screenshot%20from%202025-11-27 16-42-09.png" alt="Image 10" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-42-22.png" alt="Love Plot" width="800"/>
-*Love Plot showing Standardized Mean Differences before/after matching*
+<img src="Picture/Screenshot%20from%202025-11-27 16-42-22.png" alt="Image 11" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-42-39.png" alt="Sensitivity Analysis" width="800"/>
-*Sensitivity Analysis with Critical Γ: 1.00, E-value: 265.85, Robustness: MODERATE*
+<img src="Picture/Screenshot%20from%202025-11-27 16-42-39.png" alt="Image 12" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-42-52.png" alt="Rosenbaum Bounds" width="800"/>
-*Rosenbaum Bounds (Γ Sensitivity) showing p-value changes with unmeasured confounding*
+<img src="Picture/Screenshot%20from%202025-11-27 16-42-52.png" alt="Image 13" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-43-21.png" alt="Refutation Tests 1" width="800"/>
-*Refutation Tests: Placebo Test (PASSED), Random Common Cause (PASSED), Data Subset Validation (PASSED)*
+<img src="Picture/Screenshot%20from%202025-11-27 16-43-21.png" alt="Image 14" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-43-31.png" alt="Placebo Outcome Test" width="800"/>
-*Placebo Outcome Test showing no spurious effects*
+<img src="Picture/Screenshot%20from%202025-11-27 16-43-31.png" alt="Image 15" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-44-14.png" alt="Data Subset Robustness" width="800"/>
-*Treatment Effect Robustness Across Data Subsets (10 random samples)*
+<img src="Picture/Screenshot%20from%202025-11-27 16-44-14.png" alt="Image 16" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-44-41.png" alt="Advanced Diagnostics" width="800"/>
-*Advanced diagnostics: Network Spillover (PASSED), Temporal Interference (PASSED), Effect Heterogeneity (DETECTED)*
+<img src="Picture/Screenshot%20from%202025-11-27 16-44-41.png" alt="Image 17" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-44-52.png" alt="Effect Heterogeneity" width="800"/>
-*Treatment Effect Heterogeneity by Subgroup - younger age groups show stronger effects*
+<img src="Picture/Screenshot%20from%202025-11-27 16-44-52.png" alt="Image 18" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-45-11.png" alt="Temporal Stability" width="800"/>
-*Treatment Effect Temporal Stability - effect remains stable over 12-month period*
+<img src="Picture/Screenshot%20from%202025-11-27 16-45-11.png" alt="Image 19" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-45-41.png" alt="Diagnostics Summary" width="800"/>
-*Advanced Diagnostics Summary with actionable recommendations*
+<img src="Picture/Screenshot%20from%202025-11-27 16-45-41.png" alt="Image 20" width="800"/>
 
-**Purpose**: Deep-dive quality assurance for analysts to verify causal assumptions.
+After running causal inference, you need to verify that the result is trustworthy. This module provides 20+ diagnostic checks that validate causal assumptions and quantify result quality. These diagnostics feed into the **CAS Score** (Causal Assurance Score) calculation.
 
-**Key Diagnostics**:
-- **Overlap/Positivity**: Propensity score distribution, common support
-- **Covariate Balance**: Love plots, SMD thresholds
-- **Sensitivity Analysis**: Rosenbaum bounds, E-values
-- **Refutation Tests**: Placebo tests, random common cause, subset validation
-- **Advanced Checks**: Network spillover, temporal interference, effect heterogeneity
+The Diagnostics module is where analysts spend time before presenting results to executives. It answers questions like:
+- "Can I trust this treatment effect estimate?"
+- "Are there hidden confounders I didn't account for?"
+- "Will this result hold up if I deploy to production?"
 
----
+**Key Diagnostics:**
 
-### 4.3 Decision Console – Marketing Decisions
+- **Overlap/Positivity Diagnostics**: Verifies that both treated and control units exist across the covariate distribution. Visualizes propensity score distribution (probability of treatment given covariates) to ensure common support regions exist. If certain customer segments have 100% treatment or 0% treatment probability, causal inference is impossible for those segments – this diagnostic catches that problem early.
 
-**Screenshot:**
+- **Covariate Balance**: Checks whether treated and control groups are comparable after adjustment. Displays Love Plots showing Standardized Mean Differences (SMD) before and after weighting/matching. SMD > 0.1 indicates imbalance that could bias results. This diagnostic ensures that any differences in outcomes are due to treatment, not pre-existing group differences.
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-46-06.png" alt="Decision Console" width="800"/>
-*Decision Console with KPIs (Total Δ¥, Avg Δ¥/Policy, Mean CAS, CVaR), Δ¥ Trend chart, Segment Portfolio, Channel Performance, Decision Cards table*
+- **Sensitivity Analysis**: Assesses how sensitive your results are to unmeasured confounding. Computes Rosenbaum Bounds (Γ values) and E-values to quantify how strong unmeasured confounding would need to be to eliminate the observed effect. For example, "E-value = 2.5" means an unmeasured confounder would need to be 2.5x stronger than all measured covariates to explain away the treatment effect.
 
-**Purpose**: Executive dashboard showing cumulative Δ¥, verdicts, and ROI trends.
+- **Refutation Tests**: Runs falsification tests to check if your method produces spurious results. Includes:
+  - **Placebo Test**: Apply treatment to a random outcome that shouldn't be affected. If you detect an effect, something is wrong with your identification strategy.
+  - **Random Common Cause**: Add a random variable as a confounder. If it appears significant, your model is overfitting.
+  - **Data Subset Validation**: Randomly split data into 10 subsets and check if treatment effects are consistent. Large variation indicates fragile results.
 
-**Key Metrics**:
-- Total Incremental Profit (Δ¥)
-- Average Δ¥ / Policy
-- Mean CAS (Causal Assurance Score)
-- CVaR (worst 10% tail risk)
+- **Advanced Diagnostics**: Additional checks for complex scenarios:
+  - **Network Spillover**: Detects interference between units (e.g., one customer's treatment affects another's outcome)
+  - **Temporal Interference**: Checks if effects change over time (seasonality, trends)
+  - **Effect Heterogeneity**: Identifies customer segments where treatment effects differ significantly (feeds into Causal Forest CATE estimation)
+
+All diagnostic results aggregate into the **CAS Score**, a single 0-1 metric indicating confidence in the causal estimate. CAS ≥ 0.8 → GO, 0.6-0.8 → CANARY, < 0.6 → HOLD.
 
 ---
 
-### 4.4 Experiment Studio
+### 4.3 Decision Console
 
-**Screenshots:**
+<img src="Picture/Screenshot%20from%202025-11-27 16-46-06.png" alt="Image 21" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-46-36.png" alt="Experiment Studio" width="800"/>
-*Multi-Arm Experiment Setup: select dataset, treatment/outcome columns, define arms (Control, Variant A)*
+This is the executive dashboard where CMOs and growth teams make deployment decisions. All completed analyses appear as **Policy Cards** ranked by incremental profit (Δ¥). The console shows:
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-47-04.png" alt="Offline Analysis" width="800"/>
-*Offline Analysis (Multi-Arm) - JSON payload with feature matrix X, treatment T, outcome Y, plus analysis results table*
+- **Total Δ¥**: Cumulative incremental profit across all GO-rated policies
+- **Average Δ¥ / Policy**: Mean impact per intervention
+- **Mean CAS**: Average quality score across policies (higher = more confidence)
+- **CVaR (Conditional Value at Risk)**: Worst 10% tail risk – how much you could lose in downside scenarios
 
-**Purpose**: Orchestrate online experiments and analyze multi-arm offline data.
+Policy cards are color-coded by verdict:
+- 🟢 **GO**: CAS ≥ 0.8, deploy immediately
+- 🟡 **CANARY**: CAS 0.6-0.8, deploy to 10-20% of users first, monitor, then scale
+- 🔴 **HOLD**: CAS < 0.6, collect more data or redesign intervention
 
-**Features**:
-- Multi-arm experiment setup
-- Offline DR analysis
-- Real-time allocation updates
+Each policy card shows:
+- Δ¥ with 95% confidence interval
+- ROI (incremental profit / cost)
+- Target segment (SQL-defined customer group)
+- Risk score (variance of treatment effect)
+- CAS score breakdown
 
----
-
-### 4.5 Growth & LTV Studio
-
-**Screenshot:**
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-47-20.png" alt="Growth Studio" width="800"/>
-*Growth & LTV Studio with CLV Summary: CLV (Treated) ¥275.27, CLV (Control) ¥118.81, Δ CLV ¥156.46*
-
-**Purpose**: Run CLV, cohort, and retention analyses using Survival + Discount approach.
-
----
-
-### 4.6 Governance Center
-
-**Screenshots:**
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-47-37.png" alt="Governance Data & Sensitivity" width="800"/>
-*Governance Center: Data & Sensitivity form with Fairness Threshold, Min Samples, Sensitive Attributes, Uplift Data JSON, Check Fairness and Check Data Quality buttons*
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-47-53.png" alt="Data Quality Warnings" width="800"/>
-*Data Quality Warnings table showing rule violations (data_quality_sample_size: actual=4, required=100)*
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-48-07.png" alt="Compliance Frequency Cap" width="800"/>
-*Compliance (Frequency Cap) form with User Exposure JSON, Max Frequency Cap (10), and Check Compliance button*
-
-<img src="Picture/Screenshot%20from%202025-11-27 16-48-28.png" alt="Quality Gates Overview" width="800"/>
-*Quality Gates Overview table: Fairness Uplift Disparity (fairness, high severity, review, threshold 1000), Data Quality Gate (data_quality, medium, warn, 100), Compliance Frequency Cap (compliance, critical, block, 10)*
-
-**Purpose**: Ensure fairness, quality, and compliance before deploying policies.
-
-**Features**:
-- Fairness checks across sensitive attributes
-- Data quality validation
-- Frequency cap enforcement
-- Quality gates with configurable thresholds
+**Key Diagnostics:**
+- **KPI Summary Panel**: Displays Total Δ¥, Avg Δ¥/Policy, Mean CAS, and CVaR with trend indicators (up/down arrows showing changes from previous period).
+- **Δ¥ Trend Chart**: Time-series visualization showing how incremental profit evolves across policy deployments. Helps identify which campaigns had sustained vs temporary effects.
+- **Segment Portfolio Breakdown**: Shows which customer segments contribute most to total Δ¥. Reveals concentration risk (e.g., "80% of profit from 20% of policies").
+- **Channel Performance Comparison**: Compares effectiveness across marketing channels (Email, SMS, Push, LINE, In-App). Shows which channels have highest Δ¥ per customer and best CAS scores.
+- **Decision Cards Table**: Sortable, filterable table of all policies with Δ¥, ROI, CAS, Risk, and Verdict. Allows drill-down into individual policy diagnostics.
 
 ---
 
-### 4.7 Policy Lab
+### 4.4 Policy Lab
 
-**Screenshots:**
+<img src="Picture/Screenshot%20from%202025-11-27 16-48-45.png" alt="Image 22" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-48-45.png" alt="Custom Scenario Builder" width="800"/>
-*Policy Lab - Custom Scenario Builder with Contact Frequency slider, Discount Rate slider, Budget Cap slider, Communication Channels (Email, SMS, Push, LINE, In-App, Direct Mail)*
+<img src="Picture/Screenshot%20from%202025-11-27 16-49-51.png" alt="Image 23" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-49-51.png" alt="Target Segment Builder" width="800"/>
-*Target Segment Builder with GUI Builder and SQL Editor tabs, Example Target Segments (High-Value Dormant Users, Weekend Shoppers in Major Cities, Mobile App Power Users, Cart Abandoners with High Intent)*
+Before deploying a policy to production, use Policy Lab to design, simulate, and refine intervention strategies. This module lets you:
 
-**Purpose**: Design, evaluate, and simulate marketing policies before execution.
+**Custom Scenario Builder:**
+Define intervention parameters using interactive sliders and checkboxes:
+- **Contact Frequency**: How many touchpoints per month? (1-30)
+- **Discount Rate**: What discount percentage? (0-50%)
+- **Budget Cap**: Maximum spend per customer or campaign
+- **Communication Channels**: Email, SMS, Push, LINE, In-App, Direct Mail (select multiple)
 
-**Features**:
-- Custom scenario builder with sliders
-- SQL-based segment targeting
-- ScenarioSpec YAML/JSON export
+**Target Segment Builder:**
+Define exactly which customers receive the intervention using:
+- **GUI Builder**: Point-and-click interface for common segments (RFM score, recency, engagement level)
+- **SQL Editor**: Write arbitrary SQL WHERE clauses for advanced targeting
+
+Example segments:
+- "High-Value Dormant Users": `rfm_score >= 4 AND days_since_last_purchase > 90`
+- "Weekend Shoppers in Major Cities": `purchase_day_of_week IN ('Sat', 'Sun') AND city IN ('Tokyo', 'Osaka', 'Nagoya')`
+- "Mobile App Power Users": `app_sessions_last_30d > 15 AND platform = 'mobile'`
+- "Cart Abandoners with High Intent": `cart_value > 5000 AND cart_abandoned = TRUE AND days_since_abandon < 7`
+
+**Scenario Comparison (S0 vs S1):**
+Compare baseline scenario (S0: no intervention) vs treatment scenario (S1: with intervention) to predict:
+- Expected Δ¥ change
+- Segment-level response heterogeneity
+- Risk of cannibalization or spillover effects
+
+**Export to YAML/JSON:**
+Once designed, export the scenario specification (ScenarioSpec) as YAML or JSON for version control, reproducibility, and API integration.
+
+**Key Diagnostics:**
+- **Scenario Builder Interface**: Provides sliders for contact frequency, discount rate, budget cap, and checkboxes for channel selection. Real-time preview shows estimated reach and cost.
+- **Segment Definition Tools**: GUI builder with drag-and-drop conditions + SQL editor for power users. Shows segment size preview and distribution of key features within the segment.
+- **S0 vs S1 Comparison View**: Side-by-side comparison of predicted outcomes under baseline vs treatment scenarios. Highlights expected lift, cost, and net Δ¥.
+- **ScenarioSpec Export**: Generates YAML/JSON specification files that can be version-controlled, shared with teams, or loaded into API endpoints for automated deployment.
 
 ---
 
-### 4.8 Portfolio – Marketing Portfolio & ROI
+### 4.5 Digital Twin
 
-**Screenshots:**
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-20.png" alt="Image 24" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 16-50-28.png" alt="Recommended Portfolio Strategy" width="800"/>
-*Recommended Portfolio Strategy card: Expected Δ¥ +¥665,883, CAS Score 0.15 (Low Confidence), Risk Score 0.59 (Medium Risk), ROI 5.0x, with Decision Rationale and Recommendations bullets*
+<img src="Picture/Screenshot%20from%202025-11-27 16-50-28.png" alt="Image 25" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27 17-59-03.png" alt="Pareto Frontier" width="800"/>
-*Pareto Frontier (Profit vs Risk) scatter plot showing CAS Quality (High/Med/Low) and Portfolio Contribution ranking (top 5 policies)*
+Before deploying a policy to real customers, simulate the outcome using **Digital Twin** – a persona-based simulation engine that predicts customer-level responses.
 
-**Purpose**: Optimize policy portfolio on Pareto frontier (Profit vs Risk vs CAS).
+Digital Twin answers questions like:
+- "What happens if we send 20% discount to high-value dormant users?"
+- "How will weekend shoppers respond to LINE push notifications?"
+- "What's the expected lifetime value (CLV) lift from this intervention?"
 
-**Features**:
-- Recommended portfolio strategy with rationale
-- Pareto frontier visualization
-- Portfolio contribution analysis
+**How it works:**
+1. Define customer personas (e.g., "High-value frequent buyer", "Low-engagement bargain hunter")
+2. Specify intervention scenario (discount rate, channel, frequency)
+3. CQOx uses **Causal Forest (CATE estimation)** to predict treatment effects for each persona
+4. Digital Twin simulates responses, computes aggregate Δ¥, and flags risks (cannibalization, negative response)
+
+**Outputs:**
+- **CLV (Customer Lifetime Value) comparison**: Treated vs Control CLV, Δ CLV
+- **Segment-level effects**: Which personas benefit most? Which are hurt by the intervention?
+- **Confidence intervals**: Uncertainty in predictions
+
+This prevents costly mistakes like:
+- Sending discounts to customers who would've purchased anyway (cannibalization)
+- Targeting segments with negative treatment effects (backfire)
+
+**Key Diagnostics:**
+- **CLV Summary Panel**: Shows CLV (Treated), CLV (Control), and Δ CLV with confidence intervals. Breaks down by segment to show which customer groups gain/lose lifetime value.
+- **Persona-Level Simulation**: Predicts response for individual personas (e.g., "Frequent Buyer", "Bargain Hunter") using Causal Forest CATE estimates. Shows expected Δ¥, response rate, and churn risk for each persona.
+- **Scenario Impact Preview**: Simulates aggregate outcomes before deployment. Answers "What if we send this offer to 10,000 customers?" by extrapolating persona-level effects to population-level metrics.
+- **Risk Flags**: Automatically detects potential problems like cannibalization (high baseline purchasers getting unnecessary discounts), negative treatment effects (intervention backfires for certain segments), or high variance (unreliable predictions).
 
 ---
 
-### 4.9 Digital Twin – Customer Digital Twin
+### 4.6 Marketing Portfolio & ROI
 
-**Purpose**: Simulate persona-level responses to scenarios before rollout.
+<img src="Picture/Screenshot%20from%202025-11-27 16-46-36.png" alt="Image 26" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-04.png" alt="Image 27" width="800"/>
+
+Not all policies can be deployed simultaneously. Budget constraints, audience overlap, and cannibalization mean you need to **optimize the portfolio** of interventions.
+
+This module computes the **Pareto Frontier** – the set of policy combinations that maximize:
+- **Profit (Δ¥)**: Total incremental revenue
+- **Risk (CVaR)**: Worst-case downside
+- **Quality (CAS)**: Confidence in results
+
+**How it works:**
+1. Input all GO and CANARY-rated policies
+2. Specify constraints (total budget, max frequency caps, channel limits)
+3. CQOx runs multi-objective optimization to find efficient portfolios
+4. Visualize Pareto Frontier: trade-off between Profit and Risk
+
+**Outputs:**
+- **Recommended Portfolio Strategy**: Top policy combination with expected Δ¥, CAS score, risk score, ROI, and rationale
+- **Pareto Frontier Chart**: Scatter plot showing all feasible portfolios, color-coded by CAS quality
+- **Portfolio Contribution Analysis**: Ranks policies by marginal contribution to total Δ¥
+
+**Example decision:**
+"Deploy Policy #1 (Email to dormant users), Policy #5 (LINE push to weekend shoppers), and Policy #8 (discount to cart abandoners) together. Expected Δ¥: +¥665,883, ROI: 5.0x, Risk Score: 0.59 (Medium)."
+
+**Key Diagnostics:**
+- **Recommended Portfolio Card**: Shows the optimal policy combination with Expected Δ¥, CAS Score, Risk Score, ROI, and decision rationale. Explains why this combination is Pareto-optimal.
+- **Pareto Frontier Visualization**: Scatter plot of Profit (x-axis) vs Risk (y-axis), with points color-coded by CAS quality (High/Med/Low). Shows efficient frontier and dominated portfolios.
+- **Portfolio Contribution Ranking**: Lists top 5 policies by marginal contribution to total Δ¥. Helps identify which policies are "must-have" vs "nice-to-have".
+- **Constraint Satisfaction Check**: Validates that portfolio respects budget caps, frequency limits, and channel restrictions. Flags violations before deployment.
+
+---
+
+### 4.7 Advanced Analysis
+
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-37.png" alt="Image 28" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27 16-47-53.png" alt="Image 29" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27 16-48-07.png" alt="Image 30" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27 16-48-28.png" alt="Image 31" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27 16-40-49.png" alt="Image 32" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27 16-41-00.png" alt="Image 33" width="800"/>
+
+Before policies are exported to production systems, they must pass through **governance gates** and **experimentation validation**. This module combines:
+
+**Governance Center:**
+Enforce fairness, quality, and compliance checks:
+- **Fairness Checks**: Detect discriminatory effects across sensitive attributes (age, gender, region, income). Uses uplift disparity metrics to flag policies that disproportionately benefit/harm protected groups.
+- **Data Quality Gates**: Validate sample size requirements, check for data leaks (future information in training data), detect label noise.
+- **Frequency Caps**: Prevent over-exposure (e.g., max 10 emails/month per customer). Blocks policies that violate frequency rules.
+
+**Quality Gates Overview:**
+All governance rules appear in a single table:
+- Rule name (e.g., "Fairness Uplift Disparity", "Data Quality Sample Size")
+- Type (fairness, data_quality, compliance)
+- Severity (critical, high, medium, low)
+- Action (block, review, warn)
+- Threshold (e.g., max uplift disparity = 1000, min sample size = 100)
+
+Policies that fail **critical** gates are blocked from export. **High severity** gates trigger manual review. **Medium/low** generate warnings.
+
+**Experiment Studio (optional):**
+For policies that need additional validation, set up multi-arm experiments:
+- Define control, variant A, variant B
+- Specify allocation rules (e.g., 50/25/25 split)
+- Run offline analysis using DR-Learner on historical data
+- Preview expected results before launching live experiment
+
+**Key Diagnostics:**
+- **Governance Data & Sensitivity Form**: Input interface for fairness checks. Accepts JSON payload with treatment effects by sensitive attributes. Runs disparity tests and flags violations.
+- **Data Quality Warnings Table**: Lists all quality gate violations with actual vs required values. Example: "Sample size = 4, required = 100" → BLOCK.
+- **Compliance Frequency Cap Checker**: Validates user exposure data against frequency limits. Shows which users exceed caps and prevents policy export.
+- **Quality Gates Overview**: Master table of all governance rules. Provides at-a-glance view of which gates passed/failed for each policy.
+- **Multi-Arm Experiment Setup**: Allows definition of control and treatment variants with custom allocation rules. Supports offline DR analysis to preview results before live deployment.
+- **Advanced Diagnostics Summary**: Aggregates all quality, fairness, and compliance checks into a single actionable summary with recommendations.
 
 ---
 
