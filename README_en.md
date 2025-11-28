@@ -5,7 +5,9 @@
 
 ---
 
-**CQOx** is not a tool that "outputs results in a black-box AI manner."
+### 💡 What is CQOx
+
+CQOx is not a tool that "outputs results in a black-box AI manner."
 
 Rather, it is a platform that bundles together
 
@@ -24,15 +26,6 @@ it is a tool that answers with numbers, based on causal inference,
 questions like "How much profit did this policy actually generate?" and
 
 "Which combination should be run to be most rational?" and connects these answers to decision-making.
-
----
-
-### 💡 What is CQOx
-
-> **Top teams at Google / Netflix / Meta / WPP / BCG have built internally**  
-> **"causal-based decision console"** and  
-> **we have made it accessible for regular enterprises**.
->
 
 ---
 
