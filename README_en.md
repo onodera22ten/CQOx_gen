@@ -231,43 +231,87 @@ You have simply confirmed: *"This is the raw material I'm working with."*
 
 This is where you **design the causal inference problem**. You are not running models yet—you are **specifying the blueprint** that will guide all subsequent analysis.
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-38-59.png" alt="Causal Design - Column Mapping and Estimator Selection" width="800"/>
+#### Step 1: Define the Causal Problem
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-38-59.png" alt="Causal Design - Dataset and Column Mapping" width="800"/>
 
 **What happens here:**
 
-1. **Auto-Detection of Columns**
-   - CQOx automatically suggests which columns represent:
-     - **Treatment (T)**: `treatment`, `arm`, `variant_a`, etc.
-     - **Outcome (Y)**: `revenue`, `sales`, `delta_yen`, `conversion`, etc.
-     - **Covariates (X)**: `age`, `income`, `gender`, `region`, `previous_purchases`, etc.
-     - **ID / Timestamp**: `user_id`, `date`, etc.
-   - UI shows **(auto-detected)** labels
-   - You can override any column assignment
+- **Dataset Selection**: Choose which uploaded dataset to analyze
+- **Scenario Definition**: Baseline vs Treatment Scenario (e.g., S0 vs S1, A/B Test)
+- **Target Metric**: Define what outcome you want to measure (y = ?)
+- **Auto-Detection of Columns**:
+  - **Treatment Column** `(auto-detected)`: `treatment`, `arm`, `variant`
+  - **Outcome Column** `(auto-detected)`: `y`, `revenue`, `delta_yen`
+  - **Feature Columns** `(auto-detected)`: Demographics, behavior, context variables
+- Users can override any auto-detected column assignment
 
-2. **Select Estimators**
-   - Choose which causal inference methods to run in parallel:
-     - **DR (Doubly Robust)**: Combines propensity score + outcome regression, robust to misspecification
-     - **IPW (Inverse Propensity Weighting)**: Reweights samples by propensity score
-     - **DiD (Difference-in-Differences)**: For pre/post comparison with control group
-     - **IV (Instrumental Variables)**: Handles unmeasured confounding with instruments
-     - **CF (Causal Forest)**: ML-based CATE estimation for heterogeneous effects
-     - **SCM (Synthetic Control Method)**: Constructs counterfactual from donor pool
-     - **RD (Regression Discontinuity)**: For cutoff-based treatment assignment
+#### Step 2: Select Estimators & Train Models
 
-3. **Specify Analysis Unit**
-   - Global (entire dataset)
-   - By segment (e.g., RFM tier, geography, channel)
-   - By time period
+<img src="Picture/Screenshot%20from%202025-11-27%2016-38-40.png" alt="Estimator Selection and Recent Analyses" width="800"/>
 
-4. **Click "Train Models" Button**
-   - This triggers async Celery tasks
-   - All selected estimators run **in parallel**
-   - Results feed into the next step: Diagnostics
+**Estimator Selection:**
+
+Choose which causal inference methods to run in parallel:
+- ☑ **DR (Doubly Robust)**: Combines propensity score + outcome regression
+- ☑ **IPW (Inverse Propensity Weighting)**: Reweights samples by propensity
+- ☐ **DiD (Difference-in-Differences)**: Pre/post comparison with control
+- ☐ **IV (Instrumental Variables)**: Handles unmeasured confounding
+- ☐ **CF (Causal Forest)**: ML-based CATE for heterogeneous effects
+- ☐ **SCM (Synthetic Control)**: Constructs counterfactual from donor pool
+- ☐ **RD (Regression Discontinuity)**: Cutoff-based treatment
+
+**Click "実行中..." (Train Models)** → Triggers async Celery tasks
+
+**Recent Analyses Table:**
+- Shows all past causal analysis runs
+- Columns: `ID`, `Status` (running/completed), `Δ¥`, `Verdict` (Go/Canary/Hold), `Started`
+- Each row is clickable to view detailed results
+
+#### Step 3: View Causal Analysis Result
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-39-56.png" alt="Causal Analysis Result Summary" width="800"/>
+
+**Result Card shows:**
+
+- **Expected Δ¥**: `+¥133,177` (incremental profit)
+- **95% CI**: [¥133,177, ¥133,177] (confidence interval)
+- **CAS Score**: `0.15` (Low Confidence) — **This is the key quality metric**
+- **Verdict**: `✓ GO` (automated decision based on CAS, ROI, and risk)
+- **Decision Rationale**: "High expected profit with low risk. Causal quality checks passed."
+- **Recommendations**:
+  - Proceed with policy deployment
+  - Monitor key metrics for first 7 days
+  - Set up automated alerts for anomalies
+
+**Button**: `View Detailed Diagnostics →` (leads to Section 4.3)
+
+#### Step 4: S0 vs S1 Scenario Comparison
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-40-16.png" alt="Baseline vs Treatment Scenario Comparison" width="800"/>
+
+**Side-by-Side Comparison:**
+
+| Metric | S0: Baseline (現状維持) | S1: Treatment (施策実施後) |
+|--------|------------------------|---------------------------|
+| **Revenue** | ¥0 (No intervention) | **+¥133,177** (Incremental) |
+| **Cost** | ¥0 (Status quo) | ¥251K (Campaign cost) |
+| **Conversion Rate** | 2.4% (Baseline) | - |
+| **Users Affected** | 0 (Control group) | 4,152 (Treatment group) |
+| **Projected Outcome/User** | - | ¥936.2 (+¥267.0/user uplift) |
 
 **Key Insight:**
 
-> By clearly specifying "what is A vs B" and "what is the outcome," you create a **causal blueprint**.
-> This blueprint determines whether your downstream numbers have causal meaning or are just correlation.
+> This comparison answers: *"If we do nothing (S0) vs if we deploy this policy (S1), what is the causal difference in outcomes?"*
+> The Δ¥ = S1 - S0 is the **incremental profit** attributable to the intervention.
+
+**At this point:**
+- You have specified the causal blueprint (Treatment, Outcome, Covariates)
+- You have run multiple estimators in parallel
+- You have received a **CAS Score** that tells you how trustworthy the estimate is
+- You see the **S0 vs S1 comparison** that quantifies the causal effect
+
+**Next step:** Dive into **Diagnostics** (Section 4.3) to understand *why* the CAS score is what it is.
 
 ---
 
