@@ -183,44 +183,45 @@ while still benefiting from AI where it adds value: communication and workflow.
 
 ---
 
-## 4. Main modules
+## 4. User Journey: From Data Upload to Action
 
-### 4.1 Datasets & Causal Design
+> **CQOx is not a collection of disconnected features.**
+> It is a **single, coherent story** from CSV upload to deployment—designed so that
+> *"which policy, to whom, and how much"* flows naturally from data to decision to export.
 
-**Goal:** turn raw data into a **well-specified causal problem**.
+This section follows the **end-to-end workflow** that users experience in CQOx,
+matching the sequence described in `CQOx.PDF`.
 
-- Upload CSVs or connect to warehouse tables.  
-- Auto-detect columns for:
-  - `treatment`, `control`, `variant_*`, `arm`  
-  - `outcome` (revenue, conversion, CLV, insurance payout, etc.)  
-  - `user_id` / `customer_id`  
-  - `timestamp` / `date`  
-  - `channel`, `segment`, `campaign_id`  
-  - `cost` / `spend`
+---
 
-**Column auto-detection heuristics:**
+### 4.1 ① Datasets – Bringing in Your Data
 
-- Uses **column names**, **value cardinality**, and **value distributions**:
-  - binary 0/1 or {0,1} with names containing `treatment`, `treated`, `is_*` → treatment candidates  
-  - low-cardinality integer or string with values like `control`, `variant_a` → multi-arm treatment  
-  - monetary columns with skewed positive values and names like `revenue`, `sales`, `ltv`, `delta_yen` → outcome candidates  
-  - high-cardinality IDs → user_id / campaign_id  
-- UI shows **“(auto-detected)” label** and lets users override.
+**Story Step:** *"What ingredients are in the refrigerator?"*
 
-**Estimators:**
+At this stage, you are **not yet analyzing**—you are simply **uploading and inspecting** your raw marketing data.
 
-- **DR, IPW, AIPW, X-Learner** (ATE / CATE uplift)  
-- **DiD** (staggered adoption)  
-- **IV** (instrumental variables, LATE)  
-- **CF / SCM** (synthetic controls)  
-- **RD** (regression discontinuity)
+<img src="Picture/Screenshot%20from%202025-11-27%2017-59-03.png" alt="Dataset Management - Upload and Schema Detection" width="800"/>
 
-All estimators feed into a **Causal Assurance Score (CAS)** that combines:
+**What happens here:**
 
-- overlap diagnostics,  
-- covariate balance,  
-- model agreement,  
-- and sensitivity checks.
+1. **Upload CSV** or connect to your data warehouse (BigQuery, Snowflake, PostgreSQL, etc.)
+   - Example file: `marketing_campaign_10k_processed.csv`
+   - Contains: `user_id`, `treatment`, `outcome`, `cost`, `channel`, `age`, `income`, demographics, etc.
+
+2. **Automatic Schema Detection**
+   - CQOx scans the uploaded data and identifies:
+     - Number of rows and columns
+     - Data types (numeric, categorical, datetime)
+     - Missing values and basic statistics
+     - Potential treatment/outcome columns based on naming patterns
+
+3. **Data Preview**
+   - View the first N rows
+   - Check column distributions
+   - Verify data quality before proceeding to causal design
+
+**At this point, you have NOT done any causal inference yet.**
+You have simply confirmed: *"This is the raw material I'm working with."*
 
 ---
 
@@ -229,7 +230,7 @@ All estimators feed into a **Causal Assurance Score (CAS)** that combines:
 **Goal:** a single page where CMOs can see
 "how much incremental money the machine is printing, at what risk."
 
-![Decision Console](Picture/Screenshot%20from%202025-11-27%2016-46-06.png)
+![Decision Console](Picture/Screenshot%20from%202025-11-27%2016-41-20.png)
 *Decision Console with KPIs, Δ¥ Trend, Segment Portfolio, and Decision Cards*
 
 #### KPIs row
@@ -281,82 +282,78 @@ All estimators feed into a **Causal Assurance Score (CAS)** that combines:
 
 ---
 
-### 4.3 Diagnostics & Quality Assurance
+### 4.3 Policy Lab & Diagnostics
 
-**Goal:** Verify causal assumptions with comprehensive diagnostic checks that validate result trustworthiness before presenting to executives.
+**Goal:** explain **why** the model recommends each policy,  
+and let analysts deep-dive into model behavior.
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-38-40.png" alt="Diagnostics Overview - CAS Score Summary" width="800"/>
+Typical views:
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-39-56.png" alt="Overlap/Positivity Diagnostics" width="800"/>
+- **Causal effect distributions** (Δ¥ density, Qini / uplift curves).  
+- **Propensity overlap plots**.  
+- **Balance tables** (SMD lollipop, Love plots).  
+- **Sensitivity analysis** (Rosenbaum bounds, etc.).  
+- **Segment-level breakdowns** (e.g. uplift by RFM, device, geography).
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-40-16.png" alt="Common Support Region - Propensity Score Distribution" width="800"/>
+In the README you can briefly say:
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-40-49.png" alt="Covariate Balance (SMD)" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-41-00.png" alt="Love Plot - Standardized Mean Differences" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-41-31.png" alt="Covariate Balance Table" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-41-50.png" alt="Sensitivity Analysis Overview" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-42-09.png" alt="Rosenbaum Bounds (Γ Sensitivity)" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-42-22.png" alt="Gamma Interpretation Guide" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-42-39.png" alt="E-value Analysis" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-42-52.png" alt="CATE Analysis & Model Performance" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-43-21.png" alt="Qini Curve - Uplift Model Quality" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-43-31.png" alt="CATE Calibration Plot & Refutation Tests" width="800"/>
-
-**Key Diagnostics:**
-- **Overlap/Positivity**: Ensure treated and control units exist across covariate distributions; visualize propensity scores
-- **Covariate Balance**: Check comparability via Love Plots showing SMD before/after adjustment
-- **Sensitivity Analysis**: Compute Rosenbaum bounds and E-values to quantify robustness against unmeasured confounding
-- **Refutation Tests**: Placebo tests, random common cause, data subset validation to catch spurious results
-- **CATE Analysis**: Assess treatment effect heterogeneity and uplift model performance (Qini curve)
-
-All diagnostics aggregate into the **CAS Score** (0-1): CAS ≥ 0.8 → GO, 0.6-0.8 → CANARY, < 0.6 → HOLD.
+> Policy Lab is where data scientists verify each decision  
+> before executives see it in the Decision Console.
 
 ---
 
-### 4.4 Policy Lab
+### 4.4 Portfolio – Marketing Portfolio & ROI
 
-**Goal:** Design, evaluate, and simulate marketing policies before production deployment.
+**Goal:** decide **which set of policies** to run together,
+given budget, risk, and CAS constraints.
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-48-45.png" alt="Custom Scenario Builder" width="800"/>
+![Portfolio](Picture/Screenshot%20from%202025-11-27%2016-44-03.png)
+*Portfolio with Pareto Frontier, Contribution Analysis, and Policy Selection*
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-49-51.png" alt="Target Segment Builder" width="800"/>
+#### Recommended Portfolio Strategy
 
-**Custom Scenario Builder:**
-Define intervention parameters using interactive sliders and checkboxes:
-- **Contact Frequency**: Touchpoints per month (1-30)
-- **Discount Rate**: Discount percentage (0-50%)
-- **Budget Cap**: Maximum spend per customer or campaign
-- **Communication Channels**: Email, SMS, Push, LINE, In-App, Direct Mail (select multiple)
+- **Expected Δ¥** for the selected portfolio  
+- **Portfolio CAS score** (mean or weighted CAS)  
+- **Portfolio risk score** (e.g. variance / downside risk)  
+- **Portfolio-level ROI**  
+- **Decision rationale** (generated explanation)  
+- **Recommendations list**, for example:
+  - “Selected 5 / 19 policies.”  
+  - “Mean CAS score: 0.75 – Moderate Confidence.”  
+  - “Portfolio risk: 0.15 – Low risk.”  
+  - “Total budget: ¥133,177.”
 
-**Target Segment Builder:**
-Define exactly which customers receive the intervention:
-- **GUI Builder**: Point-and-click interface for common segments (RFM score, recency, engagement)
-- **SQL Editor**: Write arbitrary SQL WHERE clauses for advanced targeting
+#### Pareto Frontier (Profit vs Risk)
 
-Example segments:
-- "High-Value Dormant Users": `rfm_score >= 4 AND days_since_last_purchase > 90`
-- "Weekend Shoppers in Major Cities": `purchase_day_of_week IN ('Sat', 'Sun') AND city IN ('Tokyo', 'Osaka', 'Nagoya')`
-- "Mobile App Power Users": `app_sessions_last_30d > 15 AND platform = 'mobile'`
-- "Cart Abandoners with High Intent": `cart_value > 5000 AND cart_abandoned = TRUE AND days_since_abandon < 7`
+- Scatter plot of policies:  
+  - X-axis: Risk.  
+  - Y-axis: Profit (Δ¥).  
+  - Color: CAS quality (High / Medium / Low).  
+  - Dashed line: Pareto frontier.  
+- **Interpretation hint**: points on the frontier are “efficient” —  
+  you cannot get more profit without taking more risk.
+
+#### Portfolio Contribution
+
+- Ranked bar chart of **top contributing policies**.  
+  - Shows Δ¥ per policy and share of total portfolio Δ¥.
+
+#### Portfolio Policies table
+
+- All policies with columns:  
+  `Policy Name`, `Dataset`, `Channel`, `Δ¥`, `ROI`, `Risk`, `CAS`, `Verdict`.  
+- Buttons: `Include`, `Test`, `Exclude`.  
+- The **portfolio recommendation** reacts to these toggles.
 
 ---
 
 ### 4.5 Digital Twin – Customer Digital Twin
 
-**Goal:** Simulate customer-level responses before deploying to real customers using a persona-based prediction engine.
+**Goal:** answer
+"if we change our strategy, what happens to *personas* we care about?"
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-44-14.png" alt="Digital Twin - Persona Selection" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-44-41.png" alt="Digital Twin - Scenario Simulation" width="800"/>
+![Digital Twin](Picture/Screenshot%20from%202025-11-27%2016-46-06.png)
+*Digital Twin with Persona Cards and Scenario Simulations*
 
 Key elements:
 
@@ -386,42 +383,12 @@ This view is especially helpful for **non-technical marketers**.
 
 ---
 
-### 4.6 Portfolio – Marketing Portfolio & ROI
-
-**Goal:** Optimize the portfolio of interventions considering budget constraints, audience overlap, and cannibalization.
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-44-52.png" alt="Recommended Portfolio Strategy" width="800"/>
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-45-11.png" alt="Pareto Frontier - Profit vs Risk" width="800"/>
-
-Not all policies can be deployed simultaneously due to budget constraints, audience overlap, and cannibalization. This module computes the **Pareto Frontier** – policy combinations that maximize:
-- **Profit (Δ¥)**: Total incremental revenue
-- **Risk (CVaR)**: Worst-case downside
-- **Quality (CAS)**: Confidence in results
-
-**How it works:**
-1. Input all GO and CANARY-rated policies
-2. Specify constraints (total budget, max frequency caps, channel limits)
-3. CQOx runs multi-objective optimization to find efficient portfolios
-4. Visualize Pareto Frontier: trade-off between Profit and Risk
-
-**Key Features:**
-- **Recommended Portfolio Card**: Optimal policy combination with Expected Δ¥, CAS Score, Risk Score, ROI, and decision rationale
-- **Pareto Frontier Visualization**: Scatter plot of Profit vs Risk, color-coded by CAS quality (High/Med/Low)
-- **Portfolio Contribution Ranking**: Top 5 policies by marginal contribution to total Δ¥
-- **Constraint Satisfaction Check**: Validate portfolio respects budget caps, frequency limits, channel restrictions
-
----
-
-### 4.7 Experiment Studio – Online & Multi-Arm Experiments
+### 4.6 Experiment Studio – Online & Multi-Arm Experiments
 
 **Goal:** orchestrate live experiments and analyze multi-arm variants.
 
-![Experiment Studio](Picture/Screenshot%20from%202025-11-27%2016-46-36.png)
-
-![Offline Analysis](Picture/Screenshot%20from%202025-11-27%2016-47-04.png)
-
-![Experiment Orchestrator](Picture/Screenshot%20from%202025-11-27%2016-47-53.png)
+![Experiment Studio](Picture/Screenshot%20from%202025-11-27%2016-47-53.png)
+*Experiment Orchestrator with Multi-Arm Setup and Allocation*
 
 Sections:
 
@@ -451,13 +418,8 @@ Sections:
 **Goal:** ensure that **no policy goes live**
 if it violates fairness, quality, or exposure rules.
 
-![Governance Center](Picture/Screenshot%20from%202025-11-27%2016-47-37.png)
-
-![Data Quality Warnings](Picture/Screenshot%20from%202025-11-27%2016-47-53.png)
-
-![Compliance Frequency Cap](Picture/Screenshot%20from%202025-11-27%2016-48-07.png)
-
-![Quality Gates Overview](Picture/Screenshot%20from%202025-11-27%2016-48-28.png)
+![Governance Center](Picture/Screenshot%20from%202025-11-27%2016-48-28.png)
+*Governance Center with Fairness Checks, Data Quality, and Compliance Monitoring*
 
 Sections:
 
