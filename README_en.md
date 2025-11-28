@@ -231,9 +231,9 @@ You have simply confirmed: *"This is the raw material I'm working with."*
 
 This is where you **design the causal inference problem**. You are not running models yet—you are **specifying the blueprint** that will guide all subsequent analysis.
 
-#### Step 1: Define the Causal Problem
+#### Step 1: Select Estimators & Train Models
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-38-59.png" alt="Causal Design - Dataset and Column Mapping" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27%2016-38-40.png" alt="Causal Design - Estimator Selection and Training" width="800"/>
 
 **What happens here:**
 
@@ -246,9 +246,9 @@ This is where you **design the causal inference problem**. You are not running m
   - **Feature Columns** `(auto-detected)`: Demographics, behavior, context variables
 - Users can override any auto-detected column assignment
 
-#### Step 2: Select Estimators & Train Models
+#### Step 2: Column Mapping and Feature Selection
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-38-40.png" alt="Estimator Selection and Recent Analyses" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27%2016-38-59.png" alt="Column Mapping - Treatment, Outcome, Covariates" width="800"/>
 
 **Estimator Selection:**
 
