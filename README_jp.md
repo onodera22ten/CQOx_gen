@@ -133,7 +133,44 @@ CQOx は、これらのパターンを 1 つのプロダクトにまとめたも
 
 ---
 
-### 2.3 Big Tech（Google / Meta / Netflix / Amazon）との比較
+### 2.3 Google Optimize / Adobe Target / Optimizely との比較
+
+| 機能 | CQOx | Google Optimize | Adobe Target | Optimizely |
+|------------|------|-----------------|--------------|------------|
+| **因果推論手法** | 7つの推定器（DR, IPW, DiD, IV, CF, SCM, RD） | A/B テストのみ | A/B テストのみ | A/B テストのみ |
+| **選択バイアスの除去** | Doubly Robust + Propensity Score | ❌ 完全なランダム化が必要 | ❌ 完全なランダム化が必要 | ❌ 完全なランダム化が必要 |
+| **異質な処置効果（CATE）** | ✅ Causal Forest による顧客レベル効果 | ❌ 平均効果のみ | △ 事前定義セグメント | ❌ 平均効果のみ |
+| **反事実シミュレーション** | ✅ デプロイ前に ROI を予測 | ❌ 実験を実行する必要あり | ❌ 実験を実行する必要あり | ❌ 実験を実行する必要あり |
+| **長期効果予測** | ✅ DiD + 時系列（6ヶ月予測） | ❌ 短期のみ | ❌ 短期のみ | ❌ 短期のみ |
+| **操作変数法** | ✅ 内生性/交絡因子を処理 | ❌ 非対応 | ❌ 非対応 | ❌ 非対応 |
+| **施策最適化** | ✅ Pareto Frontier（利益-リスク-信頼度） | ❌ 最適化なし | ❌ 最適化なし | △ 基本ルール |
+| **SQL ベースセグメンテーション** | ✅ 任意の WHERE 句 | ❌ UI に制限 | △ 限定 | ❌ UI に制限 |
+| **デプロイメント** | ✅ オープンソース、自己ホスト、K8s 対応 | SaaS のみ（$$$） | SaaS のみ（$$$$） | SaaS のみ（$$$） |
+| **価格** | **無料（MIT）** | 年 $150k 以上 | 年 $300k 以上 | 年 $200k 以上 |
+
+**コスト削減**: 商用ツールから CQOx に切り替えることで、組織は年間 $150k-$300k を節約できます。
+
+---
+
+### 2.4 大規模言語モデル（ChatGPT, Claude, GPT-4）との比較
+
+| 能力 | CQOx | ChatGPT/Claude/GPT-4 |
+|------------|------|----------------------|
+| **因果性 vs 相関** | ✅ 数学的因果関係を証明 | ❌ 統計的相関を発見 |
+| **反事実推論** | ✅ do-calculus による P(Y \| do(X)) を計算 | ❌ 介入について推論不可 |
+| **選択バイアス処理** | ✅ Doubly Robust, IPW | ❌ i.i.d. データを仮定 |
+| **信頼区間** | ✅ Bootstrap CI with p-values | ❌ 統計的保証なし |
+| **再現性** | ✅ 決定論的アルゴリズム | ❌ 非決定論的サンプリング |
+| **専門知識** | ✅ ノーベル賞研究（Angrist, Imbens, Pearl）に基づく | ❌ 汎用テキスト予測 |
+| **規制コンプライアンス** | ✅ 説明可能、監査可能 | ❌ ブラックボックス |
+
+**例**:
+- **LLM**: "広告をクリックしたユーザーは20%多く購入した"（相関）
+- **CQOx**: "広告を表示することが高価値顧客で購入を23%増加させた（95% CI: [18%, 28%], p<0.001）が、低価値顧客では-5%だった"（因果関係 + 異質性）
+
+---
+
+### 2.5 Big Tech（Google / Meta / Netflix / Amazon）との比較
 
 一般論として、Google / Meta / Netflix / Amazon などの Big Tech は、社内で次のようなスタックを持っています。
 
@@ -160,7 +197,7 @@ CQOx は、このうちマーケティング文脈で重要な部分だけを切
 
 ---
 
-### 2.4 WPP / BCG / Accenture などのコンサルとの比較
+### 2.6 WPP / BCG / Accenture などのコンサルとの比較
 
 WPP / BCG / Accenture などのコンサルティングファームは、マーケティング効果測定や MMM、uplift 分析を **プロジェクトベース** で提供します。
 
@@ -185,6 +222,33 @@ WPP / BCG / Accenture などのコンサルティングファームは、マー�
 
 - **施策「前」の offline policy 学習に重心を置いている**
   - 多くのプロジェクトは「施策後の評価」に比重がありますが、CQOx は「次に何を打つべきか」の offline policy 学習（事前シミュレーション）に重心を置きます
+
+---
+
+### 2.7 📊 競合ランドスケープ可視化
+
+CQOx は、Haus、Incrmnta、Sellforte などの SaaS ツールや、専門的な uplift コンサルティングファームと同じ「**インクリメンタリティ測定**」領域に属しています。しかし、ポジショニングと価値提案は大きく異なります：
+
+| 次元 | CQOx | Haus / Incrmnta / Sellforte | Uplift コンサルティングファーム |
+|-----------|------|------------------------------|-------------------------|
+| **プロダクト vs コンサル依存度** | **セルフサービスプロダクト**。CSV/Parquet をアップロードすれば、アナリストはベンダーサポートなしで独立して分析を実行可能 | ツール + ベンダーサポートが必要。初期セットアップと設計には通常外部リソースが必要 | ほぼ完全にコンサルティング主導。分析からインサイト提供まで外部チームに依存 |
+| **因果推論の透明性** | **20以上の推定器（DR/IPW/DiD/IV/CF/SCM/RD）をOSSとして実装**。アルゴリズムは社内で検証・拡張可能 | 一部の実装はブラックボックス。モデリング詳細と再現可能なコードは提供されないことが多い | 分析ロジックはレポートに要約されるのみ。コードとモデルは通常提供されない |
+| **自己ホスティング / セキュリティ要件** | **自己ホスト可能（オンプレ / VPC / K8s）**。データはインフラから出ない | 主に管理型 SaaS。厳格なPIIや規制要件での使用は困難 | 分析にはデータ転送が必要。NDA下で運営されるが、定期的なデータエクスポートを前提 |
+| **マルチ推定器 & 品質ゲート** | **主要推定器7つ + OPE/g-computation の組み合わせ**。品質ゲート（Overlap、weak IV、RD manipulation テスト）を UI で強制 | 特定手法に焦点を当てた評価。品質検査の内部はツール依存で不透明なことが多い | プロジェクトごとのアドホックな手法選択。品質基準は案件によって異なる |
+
+```mermaid
+quadrantChart
+    title インクリメンタリティツール：透明性 vs セルフサービス
+    x-axis 低い透明性 --> 高い透明性
+    y-axis 高いサービス依存 --> セルフサービスプロダクト
+    quadrant-1 セルフサービス & 透明
+    quadrant-2 研究志向
+    quadrant-3 コンサル依存 & ブラックボックス
+    quadrant-4 SaaS主導
+    CQOx: [0.85, 0.90]
+    Haus/Incrmnta/Sellforte: [0.40, 0.60]
+    UpliftConsulting: [0.20, 0.30]
+```
 
 ---
 
@@ -1377,113 +1441,37 @@ CQOx はここで 2 つの機能を提供します：
 
 ---
 
-## 5. CQOx の差別化要因：比較分析
+## 5. 学術的基盤：巨人の肩の上に立つ
 
-### Google Optimize / Adobe Target / Optimizely との比較
+CQOx は、世界トップクラスの計量経済学者とコンピュータ科学者の最新研究を実装しています：
 
-| 機能 | CQOx | Google Optimize | Adobe Target | Optimizely |
-|------------|------|-----------------|--------------|------------|
-| **因果推論手法** | 7つの推定器（DR, IPW, DiD, IV, CF, SCM, RD） | A/B テストのみ | A/B テストのみ | A/B テストのみ |
-| **選択バイアスの除去** | Doubly Robust + Propensity Score | ❌ 完全なランダム化が必要 | ❌ 完全なランダム化が必要 | ❌ 完全なランダム化が必要 |
-| **異質な処置効果（CATE）** | ✅ Causal Forest による顧客レベル効果 | ❌ 平均効果のみ | △ 事前定義セグメント | ❌ 平均効果のみ |
-| **反事実シミュレーション** | ✅ デプロイ前に ROI を予測 | ❌ 実験を実行する必要あり | ❌ 実験を実行する必要あり | ❌ 実験を実行する必要あり |
-| **長期効果予測** | ✅ DiD + 時系列（6ヶ月予測） | ❌ 短期のみ | ❌ 短期のみ | ❌ 短期のみ |
-| **操作変数法** | ✅ 内生性/交絡因子を処理 | ❌ 非対応 | ❌ 非対応 | ❌ 非対応 |
-| **施策最適化** | ✅ Pareto Frontier（利益-リスク-信頼度） | ❌ 最適化なし | ❌ 最適化なし | △ 基本ルール |
-| **SQL ベースセグメンテーション** | ✅ 任意の WHERE 句 | ❌ UI に制限 | △ 限定 | ❌ UI に制限 |
-| **デプロイメント** | ✅ オープンソース、自己ホスト、K8s 対応 | SaaS のみ（$$$） | SaaS のみ（$$$$） | SaaS のみ（$$$） |
-| **価格** | **無料（MIT）** | 年 $150k 以上 | 年 $300k 以上 | 年 $200k 以上 |
+### ノーベル賞受賞者 & チューリング賞受賞者
 
-**コスト削減**: 商用ツールから CQOx に切り替えることで、組織は年間 $150k-$300k を節約できます。
-
-### 📊 競合ランドスケープ可視化
-
-CQOx は、Haus、Incrmnta、Sellforte などの SaaS ツールや、専門的な uplift コンサルティングファームと同じ「**インクリメンタリティ測定**」領域に属しています。しかし、ポジショニングと価値提案は大きく異なります：
-
-| 次元 | CQOx | Haus / Incrmnta / Sellforte | Uplift コンサルティングファーム |
-|-----------|------|------------------------------|-------------------------|
-| **プロダクト vs コンサル依存度** | **セルフサービスプロダクト**。CSV/Parquet をアップロードすれば、アナリストはベンダーサポートなしで独立して分析を実行可能 | ツール + ベンダーサポートが必要。初期セットアップと設計には通常外部リソースが必要 | ほぼ完全にコンサルティング主導。分析からインサイト提供まで外部チームに依存 |
-| **因果推論の透明性** | **20以上の推定器（DR/IPW/DiD/IV/CF/SCM/RD）をOSSとして実装**。アルゴリズムは社内で検証・拡張可能 | 一部の実装はブラックボックス。モデリング詳細と再現可能なコードは提供されないことが多い | 分析ロジックはレポートに要約されるのみ。コードとモデルは通常提供されない |
-| **自己ホスティング / セキュリティ要件** | **自己ホスト可能（オンプレ / VPC / K8s）**。データはインフラから出ない | 主に管理型 SaaS。厳格なPIIや規制要件での使用は困難 | 分析にはデータ転送が必要。NDA下で運営されるが、定期的なデータエクスポートを前提 |
-| **マルチ推定器 & 品質ゲート** | **主要推定器7つ + OPE/g-computation の組み合わせ**。品質ゲート（Overlap、weak IV、RD manipulation テスト）を UI で強制 | 特定手法に焦点を当てた評価。品質検査の内部はツール依存で不透明なことが多い | プロジェクトごとのアドホックな手法選択。品質基準は案件によって異なる |
-
-```mermaid
-quadrantChart
-    title インクリメンタリティツール：透明性 vs セルフサービス
-    x-axis 低い透明性 --> 高い透明性
-    y-axis 高いサービス依存 --> セルフサービスプロダクト
-    quadrant-1 セルフサービス & 透明
-    quadrant-2 研究志向
-    quadrant-3 コンサル依存 & ブラックボックス
-    quadrant-4 SaaS主導
-    CQOx: [0.85, 0.90]
-    Haus/Incrmnta/Sellforte: [0.40, 0.60]
-    UpliftConsulting: [0.20, 0.30]
-```
-
-### 因果推論ライブラリ（EconML, DoWhy, CausalML）との比較
-
-| 機能 | CQOx | EconML | DoWhy | CausalML |
-|---------|------|--------|-------|----------|
-| **本番環境対応 UI** | ✅ 完全な Web アプリケーション | ❌ Python ライブラリのみ | ❌ Python ライブラリのみ | ❌ Python ライブラリのみ |
-| **ノーコードインターフェース** | ✅ CSV をアップロード → 意思決定を取得 | ❌ コードが必要 | ❌ コードが必要 | ❌ コードが必要 |
-| **自動意思決定エンジン** | ✅ Go/Canary/Hold 判定 | ❌ 手動解釈 | ❌ 手動解釈 | ❌ 手動解釈 |
-| **マルチテナンシー** | ✅ RLS + RBAC | ❌ 単一ユーザー | ❌ 単一ユーザー | ❌ 単一ユーザー |
-| **分散処理** | ✅ Celery + RabbitMQ | ❌ ローカル計算 | ❌ ローカル計算 | ❌ ローカル計算 |
-| **リアルタイム監視** | ✅ Prometheus + Grafana | ❌ なし | ❌ なし | ❌ なし |
-| **API ファーストアーキテクチャ** | ✅ FastAPI + OpenAPI | ❌ 該当なし | ❌ 該当なし | ❌ 該当なし |
-
-**CQOx = EconML + DoWhy + CausalML + 本番インフラ + エンタープライズ UI**
-
-### 大規模言語モデル（ChatGPT, Claude, GPT-4）との比較
-
-| 能力 | CQOx | ChatGPT/Claude/GPT-4 |
-|------------|------|----------------------|
-| **因果性 vs 相関** | ✅ 数学的因果関係を証明 | ❌ 統計的相関を発見 |
-| **反事実推論** | ✅ do-calculus による P(Y \| do(X)) を計算 | ❌ 介入について推論不可 |
-| **選択バイアス処理** | ✅ Doubly Robust, IPW | ❌ i.i.d. データを仮定 |
-| **信頼区間** | ✅ Bootstrap CI with p-values | ❌ 統計的保証なし |
-| **再現性** | ✅ 決定論的アルゴリズム | ❌ 非決定論的サンプリング |
-| **専門知識** | ✅ ノーベル賞研究（Angrist, Imbens, Pearl）に基づく | ❌ 汎用テキスト予測 |
-| **規制コンプライアンス** | ✅ 説明可能、監査可能 | ❌ ブラックボックス |
-
-**例**:
-- **LLM**: "広告をクリックしたユーザーは20%多く購入した"（相関）
-- **CQOx**: "広告を表示することが高価値顧客で購入を23%増加させた（95% CI: [18%, 28%], p<0.001）が、低価値顧客では-5%だった"（因果関係 + 異質性）
-
----
-
-## 6. Academic Foundation: Standing on Giants' Shoulders
-
-CQOx implements cutting-edge research from the world's top econometricians and computer scientists:
-
-### Nobel Prize Winners & Turing Award Laureates
-
-| Researcher | Award | Contribution | CQOx Implementation |
+| 研究者 | 賞 | 貢献 | CQOx 実装 |
 |------------|-------|--------------|---------------------|
-| **Joshua Angrist** | 2021 Nobel Prize in Economics | Instrumental Variables (IV) for causal inference | `IVEstimator` - handles endogeneity, omitted variable bias |
-| **Guido Imbens** | 2021 Nobel Prize in Economics | Propensity Score Matching, LATE | `IPW`, `DR-Learner` - selection bias removal |
-| **David Card** | 2021 Nobel Prize in Economics | Difference-in-Differences (DiD) | `DIDEstimator` - time-series causal inference |
-| **Judea Pearl** | 2011 Turing Award (Nobel of CS) | do-calculus, Causal Bayesian Networks | Counterfactual engine, DAG-based inference |
-| **Susan Athey** | John Bates Clark Medal (2007) | Causal Forest, Machine Learning for Economics | `CausalForestEstimator` - CATE estimation |
+| **Joshua Angrist** | 2021年ノーベル経済学賞 | 因果推論のための操作変数法（IV） | `IVEstimator` - 内生性、省略変数バイアスを処理 |
+| **Guido Imbens** | 2021年ノーベル経済学賞 | 傾向スコアマッチング、LATE | `IPW`, `DR-Learner` - 選択バイアスの除去 |
+| **David Card** | 2021年ノーベル経済学賞 | 差分の差分法（DiD） | `DIDEstimator` - 時系列因果推論 |
+| **Judea Pearl** | 2011年チューリング賞（コンピュータ科学のノーベル賞） | do-calculus、因果ベイジアンネットワーク | 反事実エンジン、DAGベース推論 |
+| **Susan Athey** | 2007年ジョン・ベイツ・クラーク賞 | Causal Forest、経済学のための機械学習 | `CausalForestEstimator` - CATE 推定 |
 
-### Key Papers Implemented
+### 実装された主要論文
 
 1. **Chernozhukov et al. (2018)** - "Double/Debiased Machine Learning for Treatment and Structural Parameters"
-   *Econometrica* - **DR-Learner** with cross-fitting
+   *Econometrica* - クロスフィッティング付き **DR-Learner**
 
 2. **Athey & Imbens (2016)** - "Recursive partitioning for heterogeneous causal effects"
-   *PNAS* - **Causal Forest** for CATE
+   *PNAS* - CATE のための **Causal Forest**
 
 3. **Abadie et al. (2010)** - "Synthetic Control Methods for Comparative Case Studies"
-   *JASA* - **SCM** for aggregate-level interventions
+   *JASA* - 集約レベルの介入のための **SCM**
 
 4. **Imbens & Rubin (2015)** - "Causal Inference for Statistics, Social, and Biomedical Sciences"
-   *Cambridge University Press* - Theoretical foundation
+   *Cambridge University Press* - 理論的基盤
 
 5. **Pearl (2009)** - "Causality: Models, Reasoning, and Inference"
-   *Cambridge University Press* - do-calculus, backdoor criterion
+   *Cambridge University Press* - do-calculus、バックドア基準
 
-**Total Citations**: 47,000+ combined citations (Google Scholar)
+**総引用数**: 47,000以上（Google Scholar）
 
 ---
