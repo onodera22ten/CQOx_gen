@@ -315,23 +315,297 @@ Choose which causal inference methods to run in parallel:
 
 ---
 
-### 4.3 Policy Lab & Diagnostics
+### 4.3 ③ Diagnostics & Audit – Causal Quality Assurance
 
-**Goal:** explain **why** the model recommends each policy,  
-and let analysts deep-dive into model behavior.
+**Story Step:** *"Is this causal estimate trustworthy? Can we rely on this GO/CANARY/HOLD decision?"*
 
-Typical views:
+After running the causal analysis in Step 4.2, you now need to **validate the quality** of the causal inference. This is where the **CAS (Causal Assurance Score)** is calculated and where you verify that the treatment and control groups are comparable, the model is robust, and the heterogeneous treatment effects are credible.
 
-- **Causal effect distributions** (Δ¥ density, Qini / uplift curves).  
-- **Propensity overlap plots**.  
-- **Balance tables** (SMD lollipop, Love plots).  
-- **Sensitivity analysis** (Rosenbaum bounds, etc.).  
-- **Segment-level breakdowns** (e.g. uplift by RFM, device, geography).
+CQOx provides **two modes** for diagnostics:
 
-In the README you can briefly say:
+1. **ViewerMode** – Executive-friendly summary for decision-makers
+2. **AnalystMode** – Deep diagnostic suite for data scientists
 
-> Policy Lab is where data scientists verify each decision  
-> before executives see it in the Decision Console.
+---
+
+#### ViewerMode: Executive Summary
+
+**For:** CEOs, Marketing Directors, Non-technical stakeholders
+
+**Goal:** Get a quick GO/CANARY/HOLD verdict with confidence level at a glance.
+
+##### CAS Score Overview & Decision Verdict
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-38-40.png" alt="ViewerMode - CAS Score Overview and Verdict" width="800"/>
+
+**What you see:**
+
+- **CAS Score**: 0.15 (Low Confidence)
+- **Verdict**: ✓ GO (automated recommendation)
+- **Expected Δ¥**: +¥133,177 (incremental profit)
+- **95% Confidence Interval**: [¥133,177, ¥133,177]
+- **Quality gates summary**: Quick visual indicators for Overlap, Balance, Sensitivity
+
+This single screen answers: *"Can I trust this result enough to make a decision?"*
+
+##### Overlap & Common Support Check
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-39-56.png" alt="ViewerMode - Overlap and Common Support" width="800"/>
+
+**Why this matters:**
+
+If the treatment and control groups have **no overlap** in propensity scores (probability of receiving treatment), causal inference breaks down. This chart shows whether there is sufficient **common support** between the two groups.
+
+- **Green zone**: Good overlap → causal estimates are reliable
+- **Red zone**: Poor overlap → extrapolation risk, unreliable estimates
+
+---
+
+#### AnalystMode: Deep Diagnostic Suite
+
+**For:** Data Scientists, Causal Inference Specialists, ML Engineers
+
+**Goal:** Perform rigorous quality checks before deploying the policy to production.
+
+CQOx runs **13 diagnostic checks** across 4 categories:
+
+1. **Overlap & Common Support**
+2. **Covariate Balance**
+3. **Sensitivity Analysis**
+4. **Heterogeneous Treatment Effect (CATE) Analysis**
+
+---
+
+##### 1. Common Support Diagnostic
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-40-16.png" alt="AnalystMode - Common Support Histogram" width="800"/>
+
+**What this shows:**
+
+- Propensity score distribution for treatment (blue) vs control (orange)
+- Overlapping area indicates regions where causal inference is valid
+- Non-overlapping tails indicate extrapolation risk
+
+**Ideal result**: Large overlap between the two distributions.
+
+---
+
+##### 2. Balance Check: Standardized Mean Difference (SMD)
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-40-49.png" alt="AnalystMode - SMD Balance Check" width="800"/>
+
+**What this shows:**
+
+- **Before matching**: Raw SMD for each covariate (age, income, recency, etc.)
+- **After matching/weighting**: Adjusted SMD after propensity score weighting or matching
+
+**Threshold**: SMD < 0.1 is considered good balance (vertical dashed line)
+
+**Interpretation**: If all covariates fall within the green zone after adjustment, the treatment and control groups are **balanced** and comparable.
+
+---
+
+##### 3. Love Plot (Covariate Balance Visualization)
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-00.png" alt="AnalystMode - Love Plot" width="800"/>
+
+**What this shows:**
+
+- X-axis: Standardized Mean Difference (SMD)
+- Y-axis: List of covariates
+- **Blue dots**: Before adjustment
+- **Red dots**: After adjustment
+
+**Ideal result**: All red dots cluster near 0, indicating perfect balance.
+
+---
+
+##### 4. Covariate Balance Table
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-31.png" alt="AnalystMode - Balance Table with Statistics" width="800"/>
+
+**What this shows:**
+
+Detailed statistical table with:
+
+- **Mean (Treatment)** vs **Mean (Control)**
+- **SMD Before** and **SMD After**
+- **Variance Ratio**
+- **KS Statistic** (Kolmogorov-Smirnov test for distributional balance)
+
+**Usage**: Analysts can export this table to verify that all covariates meet balance criteria before approving the causal estimate.
+
+---
+
+##### 5. Sensitivity Analysis Overview
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-50.png" alt="AnalystMode - Sensitivity Analysis Overview" width="800"/>
+
+**What this shows:**
+
+Summary of sensitivity tests:
+
+- **Rosenbaum Bounds**: How robust is the estimate to hidden confounders?
+- **E-value**: What is the minimum strength of unmeasured confounding needed to nullify the result?
+- **Refutation Tests**: Placebo tests, random treatment, etc.
+
+**Purpose**: Answer the question: *"If there is an unmeasured confounder, how strong would it need to be to invalidate this result?"*
+
+---
+
+##### 6. Rosenbaum Bounds (Γ Sensitivity)
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-09.png" alt="AnalystMode - Rosenbaum Bounds Γ Analysis" width="800"/>
+
+**What this shows:**
+
+- **Γ (Gamma)** values on X-axis represent the strength of hidden confounding
+- **p-value** on Y-axis shows whether the treatment effect remains significant
+- **Critical Γ**: The point where the effect becomes non-significant
+
+**Interpretation**:
+
+- Γ = 1.0 → No hidden confounding
+- Γ = 1.5 → Hidden confounder would need to increase odds of treatment by 50%
+- Γ = 2.0 → Hidden confounder would need to double the odds of treatment
+
+**Ideal result**: Effect remains significant even at Γ = 1.5 or higher.
+
+---
+
+##### 7. Gamma (Γ) Interpretation Table
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-22.png" alt="AnalystMode - Gamma Interpretation Guide" width="800"/>
+
+**What this shows:**
+
+Human-readable interpretation of Γ values:
+
+| Γ Value | Interpretation |
+|---------|---------------|
+| 1.0 | No unmeasured confounding |
+| 1.1-1.3 | Weak unmeasured confounding |
+| 1.3-1.5 | Moderate unmeasured confounding |
+| 1.5-2.0 | Strong unmeasured confounding |
+| > 2.0 | Very strong unmeasured confounding |
+
+**Usage**: Helps non-specialists understand sensitivity analysis results.
+
+---
+
+##### 8. E-value Analysis
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-39.png" alt="AnalystMode - E-value Calculation" width="800"/>
+
+**What this shows:**
+
+**E-value**: The minimum strength of association (on the risk ratio scale) that an unmeasured confounder would need to have with both the treatment and outcome to explain away the observed effect.
+
+**Example**:
+
+- E-value = 2.5 means: An unmeasured confounder would need to increase the risk of both treatment and outcome by 2.5x to nullify the observed effect.
+
+**Interpretation**:
+
+- E-value > 2.0 → Robust to unmeasured confounding
+- E-value < 1.5 → Fragile to unmeasured confounding
+
+---
+
+##### 9. Conditional Average Treatment Effect (CATE) Analysis
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-52.png" alt="AnalystMode - CATE Heterogeneity Analysis" width="800"/>
+
+**What this shows:**
+
+**CATE** = Heterogeneous treatment effects across different subgroups
+
+- **Age groups**: Young users vs Seniors
+- **Income brackets**: Low-income vs High-income
+- **Engagement levels**: High-frequency vs Low-frequency
+
+**Why this matters**: A policy might have **strong positive effects** on one segment but **negative effects** on another. CATE analysis reveals these heterogeneous effects.
+
+**Usage**: Inform **targeted policies** in the Policy Lab (Section 4.8).
+
+---
+
+##### 10. Qini Curve (Uplift Modeling)
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-43-21.png" alt="AnalystMode - Qini Curve for Uplift" width="800"/>
+
+**What this shows:**
+
+- **X-axis**: Fraction of population targeted (sorted by predicted uplift)
+- **Y-axis**: Cumulative incremental outcome (Δ¥)
+
+**Interpretation**:
+
+- **Steep curve** → Model successfully identifies high-uplift users
+- **Flat curve** → Model has no predictive power (random targeting)
+
+**Business implication**: If the curve plateaus early, you can **target only the top 20% of users** and still capture 80% of the total uplift.
+
+---
+
+##### 11. CATE Calibration Plot
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-43-31.png" alt="AnalystMode - CATE Calibration Check" width="800"/>
+
+**What this shows:**
+
+- **X-axis**: Predicted CATE (model's predicted treatment effect)
+- **Y-axis**: Observed CATE (actual treatment effect in validation set)
+- **Diagonal line**: Perfect calibration
+
+**Interpretation**:
+
+- Points near the diagonal → Well-calibrated model
+- Points far from diagonal → Model is over/under-estimating treatment effects
+
+**Why this matters**: A poorly calibrated model might recommend targeting users with **low actual uplift**, wasting marketing budget.
+
+---
+
+##### 12. Refutation Tests (Placebo Checks)
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-20.png" alt="AnalystMode - Refutation Tests Summary" width="800"/>
+
+**What this shows:**
+
+Automated robustness checks:
+
+1. **Random Treatment**: Replace true treatment with random assignment → effect should disappear
+2. **Placebo Outcome**: Use a pre-treatment outcome as placebo → should show zero effect
+3. **Add Random Confounder**: Add noise variable → estimate should not change
+
+**Ideal result**: All refutation tests pass (effect disappears when expected).
+
+---
+
+##### 13. Diagnostics Summary Dashboard
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-46-06.png" alt="AnalystMode - Full Diagnostics Dashboard" width="800"/>
+
+**What this shows:**
+
+Unified view with:
+
+- **CAS Score breakdown** by component (Overlap, Balance, Sensitivity, CATE)
+- **Pass/Fail gates** for each diagnostic check
+- **Automated recommendations**: "Improve balance by adding more covariates" or "Consider stratified analysis for age groups"
+
+**Final decision**: If all gates pass, the causal estimate is ready for the **Decision Console** (Section 4.5).
+
+---
+
+**At this point in the story:**
+
+✅ You have uploaded data (Step 4.1)
+✅ You have designed the causal analysis (Step 4.2)
+✅ You have validated the causal quality (Step 4.3)
+
+**Next step:** Present the results to executives in the **Decision Console** (Section 4.4).
 
 ---
 
