@@ -1372,35 +1372,229 @@ The **Governance Center** is the final checkpoint before any policy goes live.
 
 ---
 
+## Core Technology: 7 Causal Inference Estimators
+
+### Why 7 Different Methods?
+
+**Each estimator is optimal for different data structures and causal challenges.**
+
+```
+Observational Data
+       ↓
+   What's the challenge?
+       ↓
+┌──────┴──────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+│             │          │          │          │          │          │
+Selection   Time      Endogeneity  Hetero-   Aggregate  Threshold
+Bias        Series                 geneity    Level      Policy
+│             │          │          │          │          │
+DR/IPW       DiD         IV         CF         SCM        RD
+│             │          │          │          │          │
+└──────┬──────┴──────────┴──────────┴──────────┴──────────┘
+       ↓
+  Causal Effect τ̂(x)
+```
+
+### 1. Doubly Robust (DR-Learner)
+
+**Use Case**: General-purpose causal inference from observational data
+
+**Problem Solved**: Selection bias (treated vs control groups differ systematically)
+
+**Mathematical Formula**:
+```
+τ̂_DR = (1/n) Σᵢ [ μ̂₁(Xᵢ) - μ̂₀(Xᵢ) + (Tᵢ/ê(Xᵢ))(Yᵢ - μ̂₁(Xᵢ)) - ((1-Tᵢ)/(1-ê(Xᵢ)))(Yᵢ - μ̂₀(Xᵢ)) ]
+
+where:
+- μ̂₁(X), μ̂₀(X) = outcome models for treated/control
+- ê(X) = propensity score P(T=1|X)
+- Doubly robust: consistent if EITHER μ̂ OR ê is correct
+```
+
+**Real-World Example**:
+- **Scenario**: Email campaign ROI measurement
+- **Challenge**: High-value customers more likely to receive email (selection bias)
+- **Solution**: DR-Learner reweights samples to remove bias
+- **Result**: True effect = +¥2.4M (naïve comparison = +¥3.8M, 58% overestimate)
+
+---
+
+### 2. Inverse Propensity Weighting (IPW)
+
+**Use Case**: Non-randomized treatment assignment with strong selection bias
+
+**Problem Solved**: Creates "pseudo-randomization" via reweighting
+
+**Mathematical Formula**:
+```
+τ̂_IPW = (1/n) Σᵢ [(Tᵢ·Yᵢ)/ê(Xᵢ)] - (1/n) Σᵢ [((1-Tᵢ)·Yᵢ)/(1-ê(Xᵢ))]
+
+Interpretation: Upweight under-represented samples, downweight over-represented samples
+```
+
+**Real-World Example**:
+- **Scenario**: Targeted discount campaign (only sent to inactive users)
+- **Challenge**: No randomization - all treated units are inactive
+- **Solution**: IPW reweights to mimic randomized trial
+- **Result**: Avoided -¥5.2M loss from rolling out to wrong segment
+
+---
+
+### 3. Difference-in-Differences (DiD)
+
+**Use Case**: Time-series data with pre/post intervention periods
+
+**Problem Solved**: Time-invariant confounders (e.g., seasonal effects)
+
+**Mathematical Formula**:
+```
+τ̂_DiD = (Ȳₜʳᵉᵃᵗ - Ȳₜ₋₁ᵗʳᵉᵃᵗ) - (Ȳₜᶜᵒⁿᵗʳᵒˡ - Ȳₜ₋₁ᶜᵒⁿᵗʳᵒˡ)
+
+Assumption: Parallel trends (control group shows what would've happened to treatment without intervention)
+```
+
+**Real-World Example**:
+- **Scenario**: TV commercial impact on sales
+- **Challenge**: Economic growth affects both regions
+- **Solution**: DiD isolates commercial effect from macro trends
+- **Result**: Commercial lifted sales +¥8.9M (not +¥12M as naïve before-after showed)
+
+---
+
+### 4. Instrumental Variables (IV)
+
+**Use Case**: Endogeneity (reverse causality, omitted variables)
+
+**Problem Solved**: Finds exogenous variation to isolate causal effect
+
+**Mathematical Formula**:
+```
+τ̂_IV = Cov(Y, Z) / Cov(T, Z)
+
+Requirements for valid instrument Z:
+1. Relevance: Cov(T, Z) ≠ 0  (Z affects treatment)
+2. Exclusion: Z affects Y only through T (not directly)
+3. Exogeneity: Z uncorrelated with error term
+```
+
+**Real-World Example**:
+- **Scenario**: Measure effect of app usage on purchase
+- **Challenge**: Reverse causality (purchases → more app usage)
+- **Instrument**: Random push notification assignment
+- **Solution**: IV isolates effect of usage on purchase
+- **Result**: 1 extra app session → +¥1,200 revenue (not +¥3,400 as OLS suggests)
+
+---
+
+### 5. Causal Forest
+
+**Use Case**: Heterogeneous treatment effects - "which customers benefit most?"
+
+**Problem Solved**: Conditional Average Treatment Effect (CATE) estimation
+
+**Mathematical Formula**:
+```
+τ̂(x) = E[Yᵢ(1) - Yᵢ(0) | Xᵢ = x]
+
+Algorithm: Random forest that maximizes treatment effect heterogeneity across leaves
+```
+
+**Real-World Example**:
+- **Scenario**: Personalized discount targeting
+- **Average Effect**: +¥500 per customer
+- **CATE Estimation**:
+  - High-value customers: +¥2,300 per customer
+  - Mid-value customers: +¥450 per customer
+  - Low-value customers: **-¥180 per customer** (discount cannibalizes full-price sales)
+- **Action**: Target only high/mid-value → ROI improved from 1.4x to 3.2x
+
+---
+
+### 6. Synthetic Control Method (SCM)
+
+**Use Case**: Aggregate-level interventions (geographic, store-level)
+
+**Problem Solved**: No control group exists (single treated unit)
+
+**Mathematical Formula**:
+```
+Ŷ₀ᵗ = Σⱼ wⱼ·Yⱼᵗ
+
+subject to: Σⱼ wⱼ = 1, wⱼ ≥ 0
+
+Find weights w that best match pre-intervention trends
+```
+
+**Real-World Example**:
+- **Scenario**: New store opening in Tokyo
+- **Challenge**: Can't randomize store locations
+- **Solution**: SCM creates "synthetic Tokyo" from weighted combination of Osaka, Nagoya, Fukuoka
+- **Result**: Store opening lifted revenue +¥45M (isolated from city-level growth)
+
+---
+
+### 7. Regression Discontinuity (RD)
+
+**Use Case**: Threshold-based policies (e.g., "VIP if spending > $10k")
+
+**Problem Solved**: Local randomization at cutoff point
+
+**Mathematical Formula**:
+```
+τ̂_RD = lim[Y|X→c⁺] - lim[Y|X→c⁻]
+
+where c = threshold, use local linear regression around cutoff
+```
+
+**Real-World Example**:
+- **Scenario**: VIP membership benefits (threshold: ¥500k annual spending)
+- **Challenge**: High spenders differ from low spenders systematically
+- **Solution**: Compare customers just above/below ¥500k (quasi-random)
+- **Result**: VIP benefits increase retention by 12 percentage points
+
+---
+
 ## 6. What Makes CQOx Different: Comparative Analysis
 
-### vs. Google Optimize / Adobe Target / Optimizely
+### vs. Commercial A/B Testing & Experimentation Platforms
 
-| Capability | CQOx | Google Optimize | Adobe Target | Optimizely |
-|------------|------|-----------------|--------------|------------|
-| **Causal Inference Methods** | 7 estimators (DR, IPW, DiD, IV, CF, SCM, RD) | A/B test only | A/B test only | A/B test only |
-| **Selection Bias Removal** | Doubly Robust + Propensity Score | ❌ Requires perfect randomization | ❌ Requires perfect randomization | ❌ Requires perfect randomization |
-| **Heterogeneous Treatment Effects (CATE)** | ✅ Customer-level effects via Causal Forest | ❌ Average effect only | △ Pre-defined segments | ❌ Average effect only |
-| **Counterfactual Simulation** | ✅ Predict ROI before rollout | ❌ Must run experiment | ❌ Must run experiment | ❌ Must run experiment |
-| **Long-term Effect Prediction** | ✅ DiD + TimeSeries (6-month forecast) | ❌ Short-term only | ❌ Short-term only | ❌ Short-term only |
-| **Instrumental Variables** | ✅ Handle endogeneity/confounding | ❌ Not supported | ❌ Not supported | ❌ Not supported |
-| **Policy Optimization** | ✅ Pareto Frontier (Profit-Risk-Confidence) | ❌ No optimization | ❌ No optimization | △ Basic rules |
-| **SQL-based Segmentation** | ✅ Arbitrary WHERE clauses | ❌ UI-locked | △ Limited | ❌ UI-locked |
-| **Deployment** | ✅ Open source, self-hosted, K8s-ready | SaaS only ($$$) | SaaS only ($$$$) | SaaS only ($$$) |
-| **Pricing** | **FREE (MIT)** | $150k+/year | $300k+/year | $200k+/year |
+| Capability | CQOx | [Optimizely](https://www.optimizely.com/) | [VWO](https://vwo.com/) | [AB Tasty](https://www.abtasty.com/) | [Dynamic Yield](https://www.dynamicyield.com/) |
+|------------|------|------------|-----|----------|---------------|
+| **Causal Inference Methods** | 7 estimators (DR, IPW, DiD, IV, CF, SCM, RD) | A/B test only | A/B test only | A/B test only | A/B test only |
+| **Selection Bias Removal** | Doubly Robust + Propensity Score | ❌ Requires perfect randomization | ❌ Requires perfect randomization | ❌ Requires perfect randomization | ❌ Requires perfect randomization |
+| **Heterogeneous Treatment Effects (CATE)** | ✅ Customer-level effects via Causal Forest | ❌ Average effect only | ❌ Average effect only | △ Pre-defined segments | △ Pre-defined segments |
+| **Counterfactual Simulation** | ✅ Predict ROI before rollout | ❌ Must run experiment | ❌ Must run experiment | ❌ Must run experiment | △ Limited scenarios |
+| **Long-term Effect Prediction** | ✅ DiD + TimeSeries (6-month forecast) | ❌ Short-term only | ❌ Short-term only | ❌ Short-term only | ❌ Short-term only |
+| **Instrumental Variables** | ✅ Handle endogeneity/confounding | ❌ Not supported | ❌ Not supported | ❌ Not supported | ❌ Not supported |
+| **Policy Optimization** | ✅ Pareto Frontier (Profit-Risk-Confidence) | △ Basic rules | ❌ No optimization | △ Basic rules | △ Basic rules |
+| **SQL-based Segmentation** | ✅ Arbitrary WHERE clauses | ❌ UI-locked | ❌ UI-locked | △ Limited | △ Limited |
+| **Deployment** | ✅ Open source, self-hosted, K8s-ready | SaaS only | SaaS only | SaaS only | SaaS only |
+| **Pricing** | **Contact for pricing** | $200k+/year | $100k+/year | $150k+/year | $250k+/year |
 
-**Cost Savings**: Organizations save $150k-$300k/year by switching from commercial tools to CQOx.
+**Other Commercial Solutions:**
+- **[Optimize Next](https://optimize-next.com/)** - Google Optimize alternative with similar A/B testing capabilities
+- **[SiTest](https://sitest.jp/)** - Japanese market leader in web optimization (Japan)
+- **[DLPO](https://dlpo.jp/)** - Landing page optimization platform (Japan)
+- **[Juicer](https://juicer.cc/)** - User behavior analytics and personalization (Japan)
+
+**Why CQOx?** CQOx eliminates the need for perfect randomization through causal inference, enabling organizations to measure ROI from observational data (historical campaigns, natural experiments) that commercial tools cannot handle.
 
 ### 📊 Competitive Landscape Visualization
 
-CQOx belongs to the same "**incrementality measurement**" space as Haus, Incrmnta, and Sellforte SaaS tools, as well as specialized uplift consulting firms. However, our positioning and value proposition differ significantly:
+CQOx belongs to the same "**incrementality measurement**" space as specialized causal inference and marketing mix modeling (MMM) platforms. However, our positioning and value proposition differ significantly:
 
-| Dimension | CQOx | Haus / Incrmnta / Sellforte | Uplift Consulting Firms |
-|-----------|------|------------------------------|-------------------------|
-| **Product vs Consulting Dependency** | **Self-serve product**. Upload CSV/Parquet and analysts can run analyses independently without vendor support | Tool + vendor support required. Initial setup and design typically require external resources | Almost fully consulting-driven. Analysis through insight delivery depends on external teams |
-| **Causal Inference Transparency** | **20+ estimators (DR/IPW/DiD/IV/CF/SCM/RD) implemented as OSS**. Algorithms can be validated and extended in-house | Some implementations are black-box. Modeling details and reproducible code often not provided | Analysis logic summarized in reports only. Code and models typically not delivered |
-| **Self-Hosting / Security Requirements** | **Self-hostable (on-prem / VPC / K8s)**. Data never leaves your infrastructure | Primarily managed SaaS. Difficult to use with strict PII or regulatory requirements | Analysis requires data transfer. Operates under NDA but assumes routine data exports |
-| **Multi-Estimator & Quality Gates** | **7 primary estimators + OPE/g-computation combinations**. Quality gates (Overlap, weak IV, RD manipulation tests) enforced in UI | Focused evaluation on specific methods. Quality inspection internals are tool-dependent and often opaque | Ad-hoc method selection per project. Quality standards vary across engagements |
+**Key Incrementality & Causal Measurement Players:**
+- **[Measured](https://www.measured.com/)** - Marketing incrementality measurement SaaS
+- **[Lifesight](https://lifesight.io/)** - Marketing attribution and incrementality platform
+- **[Liftlab](https://www.liftlab.io/)** - Incrementality testing for growth teams
+- **Haus / Incrmnta / Sellforte** - MMM and incrementality SaaS providers
+
+| Dimension | CQOx | Measured / Lifesight / Liftlab | Haus / Incrmnta / Sellforte | Uplift Consulting Firms |
+|-----------|------|--------------------------------|------------------------------|-------------------------|
+| **Product vs Consulting Dependency** | **Self-serve product**. Upload CSV/Parquet and analysts can run analyses independently without vendor support | Mostly self-serve with onboarding support | Tool + vendor support required. Initial setup and design typically require external resources | Almost fully consulting-driven. Analysis through insight delivery depends on external teams |
+| **Causal Inference Transparency** | **20+ estimators (DR/IPW/DiD/IV/CF/SCM/RD) implemented as OSS**. Algorithms can be validated and extended in-house | Some methodologies disclosed, but proprietary implementations | Some implementations are black-box. Modeling details and reproducible code often not provided | Analysis logic summarized in reports only. Code and models typically not delivered |
+| **Self-Hosting / Security Requirements** | **Self-hostable (on-prem / VPC / K8s)**. Data never leaves your infrastructure | Managed SaaS only. Data must be uploaded to vendor cloud | Primarily managed SaaS. Difficult to use with strict PII or regulatory requirements | Analysis requires data transfer. Operates under NDA but assumes routine data exports |
+| **Multi-Estimator & Quality Gates** | **7 primary estimators + OPE/g-computation combinations**. Quality gates (Overlap, weak IV, RD manipulation tests) enforced in UI | Platform-specific methodology (often single approach) | Focused evaluation on specific methods. Quality inspection internals are tool-dependent and often opaque | Ad-hoc method selection per project. Quality standards vary across engagements |
 
 ```mermaid
 quadrantChart
@@ -1412,6 +1606,7 @@ quadrantChart
     quadrant-3 Heavy Consulting & Black-Box
     quadrant-4 SaaS-Led
     CQOx: [0.85, 0.90]
+    Measured/Lifesight/Liftlab: [0.45, 0.75]
     Haus/Incrmnta/Sellforte: [0.40, 0.60]
     UpliftConsulting: [0.20, 0.30]
 ```
