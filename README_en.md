@@ -225,60 +225,49 @@ You have simply confirmed: *"This is the raw material I'm working with."*
 
 ---
 
-### 4.2 Decision Console – Marketing Decisions (Global Growth Console)
+### 4.2 ② Causal Design – Creating the Blueprint
 
-**Goal:** a single page where CMOs can see
-"how much incremental money the machine is printing, at what risk."
+**Story Step:** *"What is treatment A vs B? What is the outcome? Which estimators should we use?"*
 
-![Decision Console](Picture/Screenshot%20from%202025-11-27%2016-41-20.png)
-*Decision Console with KPIs, Δ¥ Trend, Segment Portfolio, and Decision Cards*
+This is where you **design the causal inference problem**. You are not running models yet—you are **specifying the blueprint** that will guide all subsequent analysis.
 
-#### KPIs row
+<img src="Picture/Screenshot%20from%202025-11-27%2016-38-59.png" alt="Causal Design - Column Mapping and Estimator Selection" width="800"/>
 
-- **Total Incremental Profit (Δ¥)**  
-  - Sum of Δ¥ across “Go” (and optionally “Canary”) decisions  
-    for the selected period.
+**What happens here:**
 
-- **Average Δ¥ / Policy**  
-  - Mean incremental profit per policy in the period.  
-  - Target ≥ 0.
+1. **Auto-Detection of Columns**
+   - CQOx automatically suggests which columns represent:
+     - **Treatment (T)**: `treatment`, `arm`, `variant_a`, etc.
+     - **Outcome (Y)**: `revenue`, `sales`, `delta_yen`, `conversion`, etc.
+     - **Covariates (X)**: `age`, `income`, `gender`, `region`, `previous_purchases`, etc.
+     - **ID / Timestamp**: `user_id`, `date`, etc.
+   - UI shows **(auto-detected)** labels
+   - You can override any column assignment
 
-- **Mean CAS (Causal Assurance Score)**  
-  - Average CAS across policies;  
-  - Thresholds: Low / Medium / High (e.g. 0–0.6 / 0.6–0.8 / 0.8–1.0).
+2. **Select Estimators**
+   - Choose which causal inference methods to run in parallel:
+     - **DR (Doubly Robust)**: Combines propensity score + outcome regression, robust to misspecification
+     - **IPW (Inverse Propensity Weighting)**: Reweights samples by propensity score
+     - **DiD (Difference-in-Differences)**: For pre/post comparison with control group
+     - **IV (Instrumental Variables)**: Handles unmeasured confounding with instruments
+     - **CF (Causal Forest)**: ML-based CATE estimation for heterogeneous effects
+     - **SCM (Synthetic Control Method)**: Constructs counterfactual from donor pool
+     - **RD (Regression Discontinuity)**: For cutoff-based treatment assignment
 
-- **CVaR (worst 10%)**  
-  - Conditional Value at Risk on Δ¥.  
-  - Interpreted as “expected downside in the worst 10% of policies”.
+3. **Specify Analysis Unit**
+   - Global (entire dataset)
+   - By segment (e.g., RFM tier, geography, channel)
+   - By time period
 
-#### Charts & tables
+4. **Click "Train Models" Button**
+   - This triggers async Celery tasks
+   - All selected estimators run **in parallel**
+   - Results feed into the next step: Diagnostics
 
-- **Δ¥ Trend**  
-  - X-axis: time (week or day).  
-  - Y-axis: total Δ¥ (bars) + CAS overlay (optional line).  
-  - Shows trajectory of incremental profit.
+**Key Insight:**
 
-- **Segment Portfolio**  
-  - Bubble chart.  
-  - X-axis: segment size (reach).  
-  - Y-axis: Δ¥ per user or per segment.  
-  - Bubble size: total Δ¥.  
-  - Color: CAS bucket (High / Medium / Low).
-
-- **Channel Performance**  
-  - Bar or dot chart.  
-  - X-axis: channel (Email, Push, App, Web, etc.).  
-  - Left Y-axis: total Δ¥ (bars).  
-  - Right Y-axis: ROI (line).
-
-- **Decision Cards table**  
-  - Columns:  
-    `Policy`, `Dataset`, `Channel`, `Segment`, `Δ¥`, `ROI`, `CAS`, `Risk`, `Verdict`, `Period`.  
-  - Verdict: `Go`, `Canary`, `Hold`.  
-  - Filters: by verdict & search by policy/segment name.
-
-> This page should be usable by executives with **zero knowledge of causal inference**.  
-> All technical details are pushed into Diagnostics and Policy Lab.
+> By clearly specifying "what is A vs B" and "what is the outcome," you create a **causal blueprint**.
+> This blueprint determines whether your downstream numbers have causal meaning or are just correlation.
 
 ---
 
