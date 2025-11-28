@@ -1397,18 +1397,32 @@ DR/IPW       DiD         IV         CF         SCM        RD
 
 ### 1. Doubly Robust (DR-Learner)
 
-**Use Case**: General-purpose causal inference from observational data
+**Use Case**:
+- **Marketing campaigns** where treatment assignment is non-random (e.g., high-value customers receive emails more frequently)
+- **Product launches** with self-selection bias (early adopters differ from general population)
+- **Healthcare interventions** where treatment assignment depends on patient characteristics
+- **Pricing experiments** where discounts are targeted to specific customer segments
+- Any scenario where you need robust causal estimates despite model misspecification
 
-**Problem Solved**: Selection bias (treated vs control groups differ systematically)
+**Problem Solved**:
+**Selection Bias & Model Robustness** - In observational data, treated and control groups differ systematically (confounding). Traditional methods require either:
+- Perfect outcome model (regression) OR
+- Perfect propensity score model (weighting)
+
+DR-Learner provides **double protection**: estimates remain consistent if EITHER model is correctly specified. This makes it more robust to model misspecification than pure regression or pure IPW approaches.
 
 **Mathematical Formula**:
 ```
 τ̂_DR = (1/n) Σᵢ [ μ̂₁(Xᵢ) - μ̂₀(Xᵢ) + (Tᵢ/ê(Xᵢ))(Yᵢ - μ̂₁(Xᵢ)) - ((1-Tᵢ)/(1-ê(Xᵢ)))(Yᵢ - μ̂₀(Xᵢ)) ]
 
 where:
-- μ̂₁(X), μ̂₀(X) = outcome models for treated/control
-- ê(X) = propensity score P(T=1|X)
-- Doubly robust: consistent if EITHER μ̂ OR ê is correct
+  μ̂₁(X), μ̂₀(X) = outcome models for treated/control (E[Y|X,T=1], E[Y|X,T=0])
+  ê(X) = propensity score P(T=1|X) (probability of treatment given covariates)
+  Tᵢ ∈ {0,1} = treatment indicator for unit i
+  Yᵢ = observed outcome for unit i
+  Xᵢ = covariate vector for unit i
+
+Key property: Doubly robust - consistent if EITHER μ̂ OR ê is correctly specified
 ```
 
 **Real-World Example**:
@@ -1421,15 +1435,39 @@ where:
 
 ### 2. Inverse Propensity Weighting (IPW)
 
-**Use Case**: Non-randomized treatment assignment with strong selection bias
+**Use Case**:
+- **Targeted interventions** where treatment probability varies drastically across groups (e.g., only inactive users receive discounts)
+- **Survey data** with non-random sampling (need to reweight to represent population)
+- **Observational studies** where treatment assignment mechanism is well-understood but complex
+- **Policy evaluations** where eligibility rules create natural variation in treatment probability
+- Situations where you want to **simulate randomization** from observational data
 
-**Problem Solved**: Creates "pseudo-randomization" via reweighting
+**Problem Solved**:
+**Non-Random Treatment Assignment & Confounding** - In many real-world scenarios, treatment assignment is determined by observable characteristics (X). For example:
+- Marketing teams target high-value customers → treatment probability ê(X) is high for X = "high CLV"
+- Inactive users receive win-back offers → ê(X) is high for X = "low recent activity"
+
+IPW **reconstructs a pseudo-randomized trial** by reweighting observations inversely to their treatment probability:
+- **Upweight** rare observations (e.g., if inactive users rarely get treated, upweight them when they do)
+- **Downweight** over-represented observations (e.g., if active users always get treated, downweight them)
+
+This makes treated and control groups **exchangeable**, mimicking random assignment.
 
 **Mathematical Formula**:
 ```
 τ̂_IPW = (1/n) Σᵢ [(Tᵢ·Yᵢ)/ê(Xᵢ)] - (1/n) Σᵢ [((1-Tᵢ)·Yᵢ)/(1-ê(Xᵢ))]
 
-Interpretation: Upweight under-represented samples, downweight over-represented samples
+where:
+  Tᵢ ∈ {0,1} = treatment indicator
+  Yᵢ = observed outcome
+  ê(Xᵢ) = P(Tᵢ=1|Xᵢ) = estimated propensity score
+
+Interpretation:
+  - Treated units weighted by 1/ê(X) → upweight if treatment was unlikely given X
+  - Control units weighted by 1/(1-ê(X)) → upweight if control was unlikely given X
+
+Intuition: If high-value customers (ê=0.9) are treated, weight = 1/0.9 ≈ 1.1 (small adjustment)
+          If low-value customers (ê=0.1) are treated, weight = 1/0.1 = 10 (large adjustment)
 ```
 
 **Real-World Example**:
@@ -1442,15 +1480,44 @@ Interpretation: Upweight under-represented samples, downweight over-represented 
 
 ### 3. Difference-in-Differences (DiD)
 
-**Use Case**: Time-series data with pre/post intervention periods
+**Use Case**:
+- **Policy interventions** with geographic variation (e.g., new regulation in one state, not others)
+- **Marketing campaigns** launched in one region/time period as a test
+- **TV/radio advertising** with regional media buying (some markets exposed, others not)
+- **Product launches** with staggered rollout across stores or cities
+- **Macroeconomic events** affecting treatment and control groups (need to difference out trends)
+- Any scenario with **before/after data and a comparison group**
 
-**Problem Solved**: Time-invariant confounders (e.g., seasonal effects)
+**Problem Solved**:
+**Time-Invariant Confounding & Secular Trends** - Simply comparing before/after outcomes is misleading because:
+- **Confounding trends**: Economic growth, seasonality, market maturation affect both treatment and control
+- **Time-invariant differences**: Treatment regions may inherently differ from control regions
+
+DiD removes bias through **double differencing**:
+1. **First difference (within-group)**: Treatment change over time - removes time-invariant characteristics
+2. **Second difference (between-group)**: Compare treatment change vs control change - removes common time trends
+
+**Assumption**: **Parallel trends** - without intervention, treatment and control would have evolved similarly.
 
 **Mathematical Formula**:
 ```
-τ̂_DiD = (Ȳₜʳᵉᵃᵗ - Ȳₜ₋₁ᵗʳᵉᵃᵗ) - (Ȳₜᶜᵒⁿᵗʳᵒˡ - Ȳₜ₋₁ᶜᵒⁿᵗʳᵒˡ)
+τ̂_DiD = (Ȳₜᵀʳᵉᵃᵗ - Ȳₜ₋₁ᵀʳᵉᵃᵗ) - (Ȳₜᶜᵒⁿᵗʳᵒˡ - Ȳₜ₋₁ᶜᵒⁿᵗʳᵒˡ)
+      = ΔYᵀʳᵉᵃᵗ - ΔYᶜᵒⁿᵗʳᵒˡ
 
-Assumption: Parallel trends (control group shows what would've happened to treatment without intervention)
+where:
+  Ȳₜᵀʳᵉᵃᵗ = average outcome in treatment group at time t (post-intervention)
+  Ȳₜ₋₁ᵀʳᵉᵃᵗ = average outcome in treatment group at time t-1 (pre-intervention)
+  Ȳₜᶜᵒⁿᵗʳᵒˡ = average outcome in control group at time t
+  Ȳₜ₋₁ᶜᵒⁿᵗʳᵒˡ = average outcome in control group at time t-1
+
+Regression specification:
+  Yᵢₜ = α + β₁·Treatᵢ + β₂·Postₜ + τ_DiD·(Treatᵢ × Postₜ) + εᵢₜ
+
+  where τ_DiD is the interaction coefficient = causal effect
+
+Parallel trends assumption:
+  E[Yᵢₜ⁽⁰⁾ - Yᵢₜ₋₁⁽⁰⁾ | Treatᵢ=1] = E[Yᵢₜ⁽⁰⁾ - Yᵢₜ₋₁⁽⁰⁾ | Treatᵢ=0]
+  (counterfactual trends would be parallel without treatment)
 ```
 
 **Real-World Example**:
@@ -1463,18 +1530,53 @@ Assumption: Parallel trends (control group shows what would've happened to treat
 
 ### 4. Instrumental Variables (IV)
 
-**Use Case**: Endogeneity (reverse causality, omitted variables)
+**Use Case**:
+- **Reverse causality**: Does app usage increase purchases, or do purchases increase app usage?
+- **Omitted variable bias**: Unobserved confounders (e.g., motivation, health status) affect both treatment and outcome
+- **Measurement error** in treatment variable
+- **Simultaneity**: Treatment and outcome are jointly determined (e.g., price and quantity in supply/demand)
+- Scenarios where you can find **natural experiments** (randomness in nature or policy, not by design)
 
-**Problem Solved**: Finds exogenous variation to isolate causal effect
+**Problem Solved**:
+**Endogeneity & Unobserved Confounding** - Standard methods fail when:
+1. **Reverse causality**: T → Y and Y → T (bidirectional causation)
+   - Example: App usage → purchases, but also purchases → app usage
+2. **Omitted variables**: Unobserved U affects both T and Y
+   - Example: "Motivation" affects both gym attendance (T) and weight loss (Y)
+3. **Measurement error**: True treatment T* is mismeasured as T
+
+IV finds an **instrument Z** (exogenous shock) that:
+- **Affects treatment** (Z → T) but
+- **Only affects outcome through treatment** (Z → T → Y, not Z → Y directly)
+- **Is uncorrelated with confounders** (Z ⊥ U)
+
+This isolates the **exogenous variation** in treatment to estimate causal effect.
 
 **Mathematical Formula**:
 ```
 τ̂_IV = Cov(Y, Z) / Cov(T, Z)
+     = [∂Y/∂Z] / [∂T/∂Z]  (reduced form / first stage)
 
 Requirements for valid instrument Z:
-1. Relevance: Cov(T, Z) ≠ 0  (Z affects treatment)
-2. Exclusion: Z affects Y only through T (not directly)
-3. Exogeneity: Z uncorrelated with error term
+1. Relevance: Cov(T, Z) ≠ 0  (Z affects treatment - "first stage")
+   - Test: F-statistic > 10 in regression T ~ Z
+   - Weak instruments → biased estimates
+
+2. Exclusion restriction: Z affects Y only through T (not directly)
+   - Z → T → Y  (allowed)
+   - Z → Y      (violation - Z has direct effect on Y)
+   - Cannot be tested statistically (maintained assumption)
+
+3. Exogeneity: Z ⊥ U (instrument uncorrelated with unobservables)
+   - Z must be "as-if random" with respect to confounders
+   - Often justified by institutional features or natural experiments
+
+Two-Stage Least Squares (2SLS) implementation:
+  Stage 1: T̂ᵢ = α + γ·Zᵢ + εᵢ   (predict treatment from instrument)
+  Stage 2: Yᵢ = β + τ_IV·T̂ᵢ + ηᵢ  (regress outcome on predicted treatment)
+
+Local Average Treatment Effect (LATE):
+  τ_IV estimates effect for "compliers" - units whose treatment status changes due to Z
 ```
 
 **Real-World Example**:
@@ -1488,15 +1590,58 @@ Requirements for valid instrument Z:
 
 ### 5. Causal Forest
 
-**Use Case**: Heterogeneous treatment effects - "which customers benefit most?"
+**Use Case**:
+- **Personalized marketing**: Which customer segments respond best to discounts, emails, or ads?
+- **Treatment effect heterogeneity**: Does the same intervention work differently across age, geography, or behavior?
+- **Targeting optimization**: Allocate limited budget to customers with highest expected lift
+- **Precision medicine**: Which patients benefit most from a drug (and who experiences side effects)?
+- **Policy personalization**: Tailor interventions to individual characteristics rather than one-size-fits-all
 
-**Problem Solved**: Conditional Average Treatment Effect (CATE) estimation
+**Problem Solved**:
+**Heterogeneous Treatment Effects (HTE) & Personalization** - Traditional methods estimate **average treatment effect** (ATE):
+```
+τ_ATE = E[Y(1) - Y(0)]  (average effect across all units)
+```
+
+But effects vary across individuals:
+- **Discount** increases purchases for price-sensitive customers but cannibalizes revenue from loyal customers
+- **Email campaigns** boost engagement for inactive users but annoy active users
+- **Ads** convert new customers but have zero effect on existing customers
+
+Causal Forest estimates **Conditional Average Treatment Effect (CATE)**:
+```
+τ(x) = E[Y(1) - Y(0) | X = x]  (effect conditional on covariates X)
+```
+
+This enables:
+1. **Targeting**: Treat only units where τ(x) > cost/threshold
+2. **Stratification**: Report effects by segment (high/medium/low responders)
+3. **Optimal allocation**: Maximize ΣᵢτᵢDᵢ subject to budget constraint
 
 **Mathematical Formula**:
 ```
 τ̂(x) = E[Yᵢ(1) - Yᵢ(0) | Xᵢ = x]
 
-Algorithm: Random forest that maximizes treatment effect heterogeneity across leaves
+where:
+  Yᵢ(1) = potential outcome under treatment for unit i
+  Yᵢ(0) = potential outcome under control for unit i
+  X = covariate vector (age, CLV, purchase history, etc.)
+
+Causal Forest Algorithm (Athey & Wager, 2016):
+  1. Build trees by splitting on X to maximize treatment effect heterogeneity
+  2. Honest splitting: Use different samples for splitting and estimation (avoid overfitting)
+  3. Prediction: For new unit with X=x, average predictions from all trees
+
+Splitting criterion (maximize variance in treatment effects):
+  Instead of minimizing Σ(Yᵢ - Ŷᵢ)² (standard regression tree),
+  Maximize Var[τ̂(x)] across leaves (find heterogeneity in effects)
+
+Honest estimation:
+  - Split data into I_split (for tree structure) and I_estimate (for leaf predictions)
+  - Prevents overfitting and provides valid confidence intervals
+
+Confidence intervals:
+  CQOx provides CI for τ̂(x) via bootstrap or infinitesimal jackknife
 ```
 
 **Real-World Example**:
@@ -1512,17 +1657,60 @@ Algorithm: Random forest that maximizes treatment effect heterogeneity across le
 
 ### 6. Synthetic Control Method (SCM)
 
-**Use Case**: Aggregate-level interventions (geographic, store-level)
+**Use Case**:
+- **Geographic interventions**: Policy change in one city/state/country (e.g., tobacco tax in California)
+- **Store-level rollouts**: New store format tested in single location
+- **Company mergers/acquisitions**: Impact of M&A on stock price or revenue
+- **Regulatory changes**: GDPR impact on European companies vs US companies
+- **Natural disasters**: Economic impact of earthquake, hurricane, or pandemic on a region
+- Scenarios with **one treated unit** and **multiple potential controls**
 
-**Problem Solved**: No control group exists (single treated unit)
+**Problem Solved**:
+**No Natural Control Group & N=1 Problem** - Many policy/business decisions involve a **single treated unit**:
+- California passes carbon tax → no "control California" exists
+- New store opens in Tokyo → Tokyo is unique (can't find identical city)
+- Brexit affects UK → no other country left EU simultaneously
+
+Traditional methods fail because:
+1. **No exact match**: No single control unit matches treatment unit perfectly
+2. **N=1**: Cannot use statistical methods requiring multiple treated units
+3. **Aggregate data**: Individual-level randomization not possible
+
+SCM **constructs a synthetic control** by creating a weighted average of control units that best matches the treated unit's **pre-intervention characteristics and trends**:
+```
+Synthetic Tokyo = 0.4·Osaka + 0.3·Nagoya + 0.2·Fukuoka + 0.1·Sapporo
+```
+
+This synthetic unit serves as counterfactual: "What would Tokyo have looked like without the intervention?"
 
 **Mathematical Formula**:
 ```
-Ŷ₀ᵗ = Σⱼ wⱼ·Yⱼᵗ
+Ŷ₀ᵗ = Σⱼ₌₁ᴶ wⱼ·Yⱼᵗ
 
-subject to: Σⱼ wⱼ = 1, wⱼ ≥ 0
+where:
+  Ŷ₀ᵗ = synthetic control (counterfactual outcome for treated unit at time t)
+  Yⱼᵗ = observed outcome for control unit j at time t
+  wⱼ = weight assigned to control unit j
+  J = number of potential control units
 
-Find weights w that best match pre-intervention trends
+Constraints:
+  Σⱼ wⱼ = 1  (weights sum to 1)
+  wⱼ ≥ 0     (non-negative weights - convex combination)
+
+Optimization problem (find weights that minimize pre-intervention mismatch):
+  w* = argmin Σₜ₌₁ᵀ⁰ (Y₁ᵗ - Σⱼ wⱼ·Yⱼᵗ)²
+
+  where T₀ = pre-intervention period, Y₁ᵗ = treated unit outcome
+
+Treatment effect at time t:
+  τ̂ₜˢᶜᴹ = Y₁ᵗ - Ŷ₀ᵗ = Y₁ᵗ - Σⱼ wⱼ·Yⱼᵗ   (for t > T₀)
+
+Extended SCM (match covariates X):
+  Minimize ||X₁ - Σⱼ wⱼXⱼ||² + λ·Σₜ₌₁ᵀ⁰ (Y₁ᵗ - Σⱼ wⱼYⱼᵗ)²
+
+Inference via placebo tests:
+  Run SCM on each control unit → distribution of "effects" under null
+  P-value = rank of actual effect / (J+1)
 ```
 
 **Real-World Example**:
@@ -1535,15 +1723,65 @@ Find weights w that best match pre-intervention trends
 
 ### 7. Regression Discontinuity (RD)
 
-**Use Case**: Threshold-based policies (e.g., "VIP if spending > $10k")
+**Use Case**:
+- **Threshold-based programs**: VIP membership at ¥500k spending, scholarship for test score > 70
+- **Age cutoffs**: Drinking age, retirement age, mandatory education
+- **Geographic boundaries**: Electoral districts, school catchment areas, tax jurisdictions
+- **Time cutoffs**: Policy effective date (before/after comparison)
+- **Credit scoring**: Loan approval above credit score threshold
+- Any policy with **sharp eligibility cutoff** creating quasi-randomization
 
-**Problem Solved**: Local randomization at cutoff point
+**Problem Solved**:
+**Selection on Observables Near Threshold** - Many policies have eligibility rules based on observable thresholds:
+- "VIP benefits if annual spending ≥ ¥500,000"
+- "Scholarship if entrance exam score ≥ 70"
+- "Free shipping if order total ≥ ¥5,000"
+
+**Problem**: Units just above threshold differ systematically from units far below (confounding)
+- High spenders (¥1M) ≠ low spenders (¥100k) on many unobservables (income, loyalty, preferences)
+
+**Solution**: Compare units **just above vs just below** the threshold:
+- Customer with ¥505k spending vs ¥495k spending are nearly identical
+- Difference in outcome is **quasi-randomly** assigned by barely crossing threshold
+- This creates **local randomization** near cutoff
+
+RD estimates **causal effect at the threshold** (LATE for marginal compliers).
 
 **Mathematical Formula**:
 ```
-τ̂_RD = lim[Y|X→c⁺] - lim[Y|X→c⁻]
+τ̂_RD = lim[E(Y|X→c⁺)] - lim[E(Y|X→c⁻)]
+     = μ⁺(c) - μ⁻(c)
 
-where c = threshold, use local linear regression around cutoff
+where:
+  c = threshold value (cutoff)
+  X = running variable (assignment variable, e.g., spending, test score)
+  Y = outcome (e.g., retention, graduation rate)
+  μ⁺(c) = lim[E(Y|X=x)] as x→c from above (treated)
+  μ⁻(c) = lim[E(Y|X=x)] as x→c from below (control)
+
+Sharp RD (treatment jumps from 0 to 1 at cutoff):
+  Tᵢ = 1[Xᵢ ≥ c]  (deterministic assignment)
+
+Fuzzy RD (treatment probability jumps at cutoff, but not from 0 to 1):
+  P(Tᵢ=1|Xᵢ=c⁺) > P(Tᵢ=1|Xᵢ=c⁻)  (partial compliance)
+  τ̂_Fuzzy = [E(Y|X=c⁺) - E(Y|X=c⁻)] / [E(T|X=c⁺) - E(T|X=c⁻)]
+
+Local linear regression (bandwidth h):
+  Estimate μ⁺(c) using data in [c, c+h]
+  Estimate μ⁻(c) using data in [c-h, c]
+
+  Optimal bandwidth (minimize MSE):
+    h* ∝ n^(-1/5)  (larger sample → narrower bandwidth)
+
+Validity checks:
+  1. No manipulation of running variable (McCrary density test)
+  2. Continuity of covariates at cutoff (placebo test)
+  3. No discontinuity in outcome at false cutoffs
+  4. Sensitivity to bandwidth choice
+
+Assumptions:
+  - Continuity: E[Y(0)|X=x] and E[Y(1)|X=x] continuous at x=c
+  - No precise manipulation: units cannot perfectly control X to cross threshold
 ```
 
 **Real-World Example**:
