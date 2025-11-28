@@ -281,86 +281,82 @@ All estimators feed into a **Causal Assurance Score (CAS)** that combines:
 
 ---
 
-### 4.3 Policy Lab & Diagnostics
+### 4.3 Diagnostics & Quality Assurance
 
-**Goal:** explain **why** the model recommends each policy,
-and let analysts deep-dive into model behavior.
+**Goal:** Verify causal assumptions with comprehensive diagnostic checks that validate result trustworthiness before presenting to executives.
 
-![S0 vs S1 Comparison](Picture/Screenshot%20from%202025-11-27%2016-38-59.png)
+<img src="Picture/Screenshot%20from%202025-11-27%2016-38-40.png" alt="Diagnostics Overview - CAS Score Summary" width="800"/>
 
-![Custom Scenario Builder](Picture/Screenshot%20from%202025-11-27%2016-48-45.png)
+<img src="Picture/Screenshot%20from%202025-11-27%2016-39-56.png" alt="Overlap/Positivity Diagnostics" width="800"/>
 
-![Target Segment Builder](Picture/Screenshot%20from%202025-11-27%2016-49-51.png)
+<img src="Picture/Screenshot%20from%202025-11-27%2016-40-16.png" alt="Common Support Region - Propensity Score Distribution" width="800"/>
 
-Typical views:
+<img src="Picture/Screenshot%20from%202025-11-27%2016-40-49.png" alt="Covariate Balance (SMD)" width="800"/>
 
-- **Causal effect distributions** (Δ¥ density, Qini / uplift curves).  
-- **Propensity overlap plots**.  
-- **Balance tables** (SMD lollipop, Love plots).  
-- **Sensitivity analysis** (Rosenbaum bounds, etc.).  
-- **Segment-level breakdowns** (e.g. uplift by RFM, device, geography).
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-00.png" alt="Love Plot - Standardized Mean Differences" width="800"/>
 
-In the README you can briefly say:
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-31.png" alt="Covariate Balance Table" width="800"/>
 
-> Policy Lab is where data scientists verify each decision  
-> before executives see it in the Decision Console.
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-50.png" alt="Sensitivity Analysis Overview" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-09.png" alt="Rosenbaum Bounds (Γ Sensitivity)" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-22.png" alt="Gamma Interpretation Guide" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-39.png" alt="E-value Analysis" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-52.png" alt="CATE Analysis & Model Performance" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-43-21.png" alt="Qini Curve - Uplift Model Quality" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-43-31.png" alt="CATE Calibration Plot & Refutation Tests" width="800"/>
+
+**Key Diagnostics:**
+- **Overlap/Positivity**: Ensure treated and control units exist across covariate distributions; visualize propensity scores
+- **Covariate Balance**: Check comparability via Love Plots showing SMD before/after adjustment
+- **Sensitivity Analysis**: Compute Rosenbaum bounds and E-values to quantify robustness against unmeasured confounding
+- **Refutation Tests**: Placebo tests, random common cause, data subset validation to catch spurious results
+- **CATE Analysis**: Assess treatment effect heterogeneity and uplift model performance (Qini curve)
+
+All diagnostics aggregate into the **CAS Score** (0-1): CAS ≥ 0.8 → GO, 0.6-0.8 → CANARY, < 0.6 → HOLD.
 
 ---
 
-### 4.4 Portfolio – Marketing Portfolio & ROI
+### 4.4 Policy Lab
 
-**Goal:** decide **which set of policies** to run together,
-given budget, risk, and CAS constraints.
+**Goal:** Design, evaluate, and simulate marketing policies before production deployment.
 
-![Portfolio - Recommended Strategy](Picture/Screenshot%20from%202025-11-27%2016-50-28.png)
+<img src="Picture/Screenshot%20from%202025-11-27%2016-48-45.png" alt="Custom Scenario Builder" width="800"/>
 
-![Portfolio - Pareto Frontier](Picture/Screenshot%20from%202025-11-27%2017-59-03.png)
+<img src="Picture/Screenshot%20from%202025-11-27%2016-49-51.png" alt="Target Segment Builder" width="800"/>
 
-#### Recommended Portfolio Strategy
+**Custom Scenario Builder:**
+Define intervention parameters using interactive sliders and checkboxes:
+- **Contact Frequency**: Touchpoints per month (1-30)
+- **Discount Rate**: Discount percentage (0-50%)
+- **Budget Cap**: Maximum spend per customer or campaign
+- **Communication Channels**: Email, SMS, Push, LINE, In-App, Direct Mail (select multiple)
 
-- **Expected Δ¥** for the selected portfolio  
-- **Portfolio CAS score** (mean or weighted CAS)  
-- **Portfolio risk score** (e.g. variance / downside risk)  
-- **Portfolio-level ROI**  
-- **Decision rationale** (generated explanation)  
-- **Recommendations list**, for example:
-  - “Selected 5 / 19 policies.”  
-  - “Mean CAS score: 0.75 – Moderate Confidence.”  
-  - “Portfolio risk: 0.15 – Low risk.”  
-  - “Total budget: ¥133,177.”
+**Target Segment Builder:**
+Define exactly which customers receive the intervention:
+- **GUI Builder**: Point-and-click interface for common segments (RFM score, recency, engagement)
+- **SQL Editor**: Write arbitrary SQL WHERE clauses for advanced targeting
 
-#### Pareto Frontier (Profit vs Risk)
-
-- Scatter plot of policies:  
-  - X-axis: Risk.  
-  - Y-axis: Profit (Δ¥).  
-  - Color: CAS quality (High / Medium / Low).  
-  - Dashed line: Pareto frontier.  
-- **Interpretation hint**: points on the frontier are “efficient” —  
-  you cannot get more profit without taking more risk.
-
-#### Portfolio Contribution
-
-- Ranked bar chart of **top contributing policies**.  
-  - Shows Δ¥ per policy and share of total portfolio Δ¥.
-
-#### Portfolio Policies table
-
-- All policies with columns:  
-  `Policy Name`, `Dataset`, `Channel`, `Δ¥`, `ROI`, `Risk`, `CAS`, `Verdict`.  
-- Buttons: `Include`, `Test`, `Exclude`.  
-- The **portfolio recommendation** reacts to these toggles.
+Example segments:
+- "High-Value Dormant Users": `rfm_score >= 4 AND days_since_last_purchase > 90`
+- "Weekend Shoppers in Major Cities": `purchase_day_of_week IN ('Sat', 'Sun') AND city IN ('Tokyo', 'Osaka', 'Nagoya')`
+- "Mobile App Power Users": `app_sessions_last_30d > 15 AND platform = 'mobile'`
+- "Cart Abandoners with High Intent": `cart_value > 5000 AND cart_abandoned = TRUE AND days_since_abandon < 7`
 
 ---
 
 ### 4.5 Digital Twin – Customer Digital Twin
 
-**Goal:** answer
-"if we change our strategy, what happens to *personas* we care about?"
+**Goal:** Simulate customer-level responses before deploying to real customers using a persona-based prediction engine.
 
-![Digital Twin - Persona Cards](Picture/Screenshot%20from%202025-11-27%2016-47-20.png)
+<img src="Picture/Screenshot%20from%202025-11-27%2016-44-14.png" alt="Digital Twin - Persona Selection" width="800"/>
 
-![Digital Twin - Scenario Simulation](Picture/Screenshot%20from%202025-11-27%2016-50-28.png)
+<img src="Picture/Screenshot%20from%202025-11-27%2016-44-41.png" alt="Digital Twin - Scenario Simulation" width="800"/>
 
 Key elements:
 
@@ -390,7 +386,34 @@ This view is especially helpful for **non-technical marketers**.
 
 ---
 
-### 4.6 Experiment Studio – Online & Multi-Arm Experiments
+### 4.6 Portfolio – Marketing Portfolio & ROI
+
+**Goal:** Optimize the portfolio of interventions considering budget constraints, audience overlap, and cannibalization.
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-44-52.png" alt="Recommended Portfolio Strategy" width="800"/>
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-45-11.png" alt="Pareto Frontier - Profit vs Risk" width="800"/>
+
+Not all policies can be deployed simultaneously due to budget constraints, audience overlap, and cannibalization. This module computes the **Pareto Frontier** – policy combinations that maximize:
+- **Profit (Δ¥)**: Total incremental revenue
+- **Risk (CVaR)**: Worst-case downside
+- **Quality (CAS)**: Confidence in results
+
+**How it works:**
+1. Input all GO and CANARY-rated policies
+2. Specify constraints (total budget, max frequency caps, channel limits)
+3. CQOx runs multi-objective optimization to find efficient portfolios
+4. Visualize Pareto Frontier: trade-off between Profit and Risk
+
+**Key Features:**
+- **Recommended Portfolio Card**: Optimal policy combination with Expected Δ¥, CAS Score, Risk Score, ROI, and decision rationale
+- **Pareto Frontier Visualization**: Scatter plot of Profit vs Risk, color-coded by CAS quality (High/Med/Low)
+- **Portfolio Contribution Ranking**: Top 5 policies by marginal contribution to total Δ¥
+- **Constraint Satisfaction Check**: Validate portfolio respects budget caps, frequency limits, channel restrictions
+
+---
+
+### 4.7 Experiment Studio – Online & Multi-Arm Experiments
 
 **Goal:** orchestrate live experiments and analyze multi-arm variants.
 
