@@ -1,200 +1,290 @@
-# CQOx – Causal Query Optimizer
+# CQOx – Causal Marketing Decision Platform
 
 **📖 Documentation**
-[🏠 README (Quick Start)](README.md) | **🇺🇸 English (Full)** | [🇯🇵 日本語 (Full)](README_jp.md)
+**🇺🇸 English (Full)** | [🇯🇵 日本語 (Full)](README_jp.md)
 
 ---
 
-**CQOx** is a full–stack platform for **causal marketing decisions**.  
-It turns raw event data (CSV or DB extracts) into **incremental profit (Δ¥)**,  
-**risk**, and **go / canary / hold** recommendations – with **governance and fairness**
-controls that match what top tech and consulting firms build in-house.
+**CQOx** is not a tool that "outputs results in a black-box AI manner."
 
-> Short version: CQOx gives you a “Google/Netflix-grade” causal decision console  
-> for marketing – without needing a research team to recreate it.
+Rather, it is a platform that bundles together
 
----
+causal inference, experimentation, portfolio optimization, and governance
 
-## 1. Why CQOx exists
+to provide a decision console like those used internally by Big Tech companies,
 
-Most marketing analytics tools stop at:
+in a form that regular enterprises can operate.
 
-- **descriptive dashboards** (CTR, CVR, open rate, revenue),
-- or **black-box ML scores** (“propensity: 0.83”).
+Unlike project-based analyses like those from WPP / BCG / Accenture,
 
-What business owners actually need is:
+and unlike generic AI tools,
 
-- “If we **run this campaign on this segment**,  
-  **how much incremental profit (Δ¥)** do we expect?
-- **How risky is it?**  
-- **Is it fair and compliant?**  
-- **Which portfolio of campaigns** maximizes growth under budget / risk / fairness constraints?”
+it is a tool that answers with numbers, based on causal inference,
 
-Top companies (Google, Meta, Netflix, Amazon, WPP, BCG, Accenture…)  
-build internal stacks that combine:
+questions like "How much profit did this policy actually generate?" and
 
-1. **Causal inference** (uplift, DiD, IV, RD, SCM, etc.),
-2. **Experimentation platforms** (A/B, multi-armed bandits),
-3. **Portfolio optimization** (profit vs risk, CVaR),
-4. **Governance** (fairness, exposure caps, quality gates).
-
-CQOx packages these patterns into a single product that:
-
-- ingests your **CSV or table extracts**,  
-- runs **causal estimators & diagnostics**,  
-- surfaces **decision-ready views** for marketers and executives,  
-- and enforces **governance policies** before anything ships to customers.
+"Which combination should be run to be most rational?" and connects these answers to decision-making.
 
 ---
 
-## 2. Product storyline – from CSV to decisions
+### 💡 What is CQOx
 
-A typical flow looks like this:
-
-1. **Upload dataset** (or connect to your warehouse).  
-   - Example: campaign logs, user-level outcomes, demographics, costs.
-
-2. **Causal Design**  
-   - Auto-detects candidate columns for **treatment, outcome, user id, time, channel, cost**.  
-   - You confirm / adjust the causal design (treatment column, outcome column, feature set).  
-   - Choose estimators (DR, IPW, DiD, IV, CF, SCM, RD).
-
-3. **Train causal models & run diagnostics**  
-   - CQOx trains multiple estimators, runs overlap checks, balance diagnostics,  
-     and builds a **Causal Assurance Score (CAS)** for each design.
-
-4. **Decision Console – Marketing Decisions**  
-   - Aggregates executed “policies” (campaign decisions) into a **global growth console**.  
-   - Shows **total incremental profit, average Δ¥ / policy, CAS, tail-risk (CVaR)**,  
-     with drill-downs by segment and channel.
-
-5. **Portfolio – Marketing Portfolio & ROI**  
-   - Ranks policies on a **multi-objective Pareto frontier** (profit vs risk vs CAS).  
-   - Recommends a **portfolio strategy** (which policies to include / test / exclude).
-
-6. **Digital Twin – Customer Digital Twin**  
-   - Simulates how different **customer personas** respond to scenarios  
-     (premium vs discount vs nurture vs retention campaigns).  
-   - Lets you run “what-if” simulations before touching real customers.
-
-7. **Experiment Studio – Online & Multi-Arm Experiments**  
-   - Orchestrates **live experiments** (A/B and multi-arm) with arm allocation and outcome updates.  
-   - Supports **offline multi-arm analysis** for historical data.
-
-8. **Governance Center – Fairness, Quality & Compliance**  
-   - Checks **fairness** across sensitive attributes (gender, age_group, etc.).  
-   - Monitors **data quality** for uplift inputs.  
-   - Enforces **frequency caps / exposure limits** and logs violations.
-
-9. **Export Gate**  
-   - Exports recommended policies & segments to downstream systems  
-     (e.g. ESP/CDP, marketing automation, or internal tools).
+> **Top teams at Google / Netflix / Meta / WPP / BCG have built internally**  
+> **"causal-based decision console"** and  
+> **we have made it accessible for regular enterprises**.
+>
 
 ---
 
-## 3. What makes CQOx different
+## 1. Why CQOx is Needed
 
-### 3.1 Versus traditional BI dashboards
+Most tools stop here:
 
-- BI dashboards show **what happened** (revenue, CVR).  
-- CQOx shows **what changed because of the intervention** (Δ¥, uplift) –  
-  and **what will likely happen** if you adjust your strategy.
+- **Visual dashboards**: Graphs showing "what happened" such as CVR, revenue, open rates
+- **Black-box scores**: Machine learning scores such as "purchase probability: 0.83"
 
-Key differences:
+However, what management and marketing professionals actually ask are questions like these:
 
-- **Δ¥ first**: all views are built around **incremental profit**, not raw revenue.  
-- **Policy unit of analysis**: decisions are grouped into **policies**  
-  (e.g. “Push v3 to RFM 4–5 + App users”).  
-- **Risk & CAS**: every number has a **quality score** and **risk metric** attached.
+- "If we run this policy on this segment,  
+  **how much profit increased (Δ¥) can we say?**"
+- "How much **risk** are we taking? How much loss could we face at worst?"
+- "With this policy portfolio,  
+  are we maximizing growth while maintaining budget, risk, and fairness constraints?"
 
-### 3.2 Versus generic ML / “AI” tools
+Top companies like Google / Meta / Netflix / Amazon, and consulting firms like WPP / BCG / Accenture  
+have internal stacks that combine the following four:
 
-Most “AI for marketing” tools:
+1. **Causal inference** (uplift, DiD, IV, RD, SCM, etc.)
+2. **Experimentation platforms** (A/B testing, multi-armed bandits)
+3. **Portfolio optimization** (profit vs risk, CVaR)
+4. **Governance** (fairness, frequency caps, quality gates)
 
-- train **predictive models** (e.g. “probability of purchase next 7 days”),
-- optimize **statistical loss functions** (AUC, log-loss),
-- and often treat all positive outcomes as equally good, regardless of
-  **incrementality, cost, or fairness**.
-
-CQOx is fundamentally different:
-
-- **Causal, not just predictive**  
-  - AI/ML answers: “given features X, what is likely to happen?”  
-  - CQOx answers: “for the same user, what would have happened  
-    **if we did not run this campaign**?” – a **counterfactual** question.  
-  - This requires explicit assumptions, estimators, and diagnostics.
-
-- **Business objective, not generic accuracy**  
-  - Objective is **incremental profit (Δ¥)** under **risk and governance constraints**,  
-    not AUC or generic accuracy.  
-  - A model that increases clicks but destroys incremental profit  
-    is **penalized**, not celebrated.
-
-- **Transparent & auditable**  
-  - Estimators (DR, IPW, DiD, IV, CF, SCM, RD) and diagnostics are visible,  
-    so data scientists can inspect what the system is doing.  
-  - Governance rules (fairness, frequency caps, quality gates) are explicit –  
-    not hidden in a black-box recommender.
-
-- **Stable over time**  
-  - Because CQOx models **effects of interventions**, not just correlations,
-    policies tend to be more robust to distribution shifts than
-    purely predictive recommenders.
-
-In short:
-
-> Generic AI finds patterns; CQOx estimates **effects**  
-> and wraps them in **decision and governance logic**.
-
-### 3.3 Versus uplift SaaS / consulting offers
-
-- **Consulting firms (WPP/BCG/Accenture)** often deliver  
-  PDFs & slide decks that **summarize one-off studies**.  
-  CQOx instead provides a **continuous console** that runs every week/day.
-
-- **Uplift SaaS tools** often focus only on model scores.  
-  CQOx additionally offers:
-  - **Global Growth Console** (portfolio view across policies),  
-  - **Digital Twin** (persona-level simulation),  
-  - **Experiment Studio** (online bandit orchestration),  
-  - **Governance Center** (fairness, quality, compliance).
-
-### 3.4 How CQOx uses AI (and what it does NOT do)
-
-CQOx is **not** a generative AI tool that “decides everything automatically”.  
-Instead, AI is used in **supporting roles**, while **causal estimators and rules**
-remain the single source of truth for decisions.
-
-Typical AI-assisted use cases:
-
-- Generate **human-readable rationales** for recommended portfolios.  
-- Draft **campaign narratives** or **policy names** based on segments.  
-- Help analysts navigate diagnostics (e.g. “summarize key warnings for this policy”).
-
-CQOx deliberately does **not**:
-
-- let a language model override causal estimates or governance rules,  
-- deploy campaigns without **explicit human or rule-based approval**,  
-- hide the effect estimation logic behind an “AI” label.
-
-This separation keeps the system **auditable, safe, and compliant**,  
-while still benefiting from AI where it adds value: communication and workflow.
-
+CQOx packages these patterns into a single product.
 
 ---
 
-## 4. User Journey: From Data Upload to Action
+## 2. What Makes CQOx Different
 
-> **CQOx is not a collection of disconnected features.**
-> It is a **single, coherent story** from CSV upload to deployment—designed so that
+### 2.1 Differences from BI Dashboards
+
+- BI is a tool that displays "what happened" (revenue, CVR) nicely.
+- CQOx estimates "how much changed **as a result of** running the policy (Δ¥)"  
+  and further simulates "what would change if we change the policy."
+
+Key points:
+
+- The center of all views is **incremental profit (Δ¥)**  
+  Looking at "the increase because we did it," not net revenue.
+- Analysis is fundamentally **policy-based (Policy unit)**  
+  (e.g., "Send Push V3 three times to RFM4-5 with App")
+- All numbers are linked to **CAS (Causal Assurance Score)** and **risk metrics**
+
+---
+
+### 2.2 Differences from AI / Machine Learning Tools
+
+Typical "AI marketing support tools" work as follows:
+
+- **Predictive** models (classification, regression) for purchase probability, churn probability, etc.
+- Objective function is statistical metrics like AUC / logloss / MSE
+- Simple decision rules like "distribute to people in order of high scores"
+
+In other words:
+
+- Create **predictive models** such as "purchase probability" and "churn probability"
+- Learn to minimize statistical loss functions such as **AUC and logloss**
+- Interpret prediction scores directly as "high score = target"
+
+In contrast, CQOx is fundamentally different:
+
+- **Deals with "what if we hadn't done it?" (causality), not prediction**  
+  - AI makes **predictions** like "Given current information, is this person likely to buy?"  
+  - AI: P(Y=1 | X) (Is this person likely to buy?)
+  - CQOx estimates **counterfactuals** like "For this person, how much would sales change  
+    **between sending the policy and not sending it?**"  
+  - CQOx: E[Y(1) - Y(0) | X] (For this person, how much would results change between running and not running the policy?)
+  - The latter is about **causal effects (uplift / Δ¥)**, and the model structure and evaluation are completely different
+  - For this reason, estimators, assumptions, and diagnostics are all explicit
+
+- **Metrics are profit, risk, and fairness, not AUC**  
+  - The goal is to "maximize Δ¥ while suppressing risk and unfairness."  
+  - Even if clicks or CVR increase, if **incremental profit is negative**, it is judged as a "bad policy."
+  - AI tools tend to say "CVR increased, so success," but
+    CQOx judges "CVR increased, but if including costs and cannibalization, Δ¥ is negative, then failure."
+  - The premise is to evaluate "did the company's wallet increase?" not "how much did we hit?"
+
+- **Auditable mechanism (guarantee of governance and transparency), not black-box**  
+  - Estimators such as DR / IPW / DiD / IV / CF / SCM / RD are visible from the UI
+  - Balance checks, overlap, and sensitivity analysis can also be confirmed on screen
+  - Data scientists can trace "why is this policy a Go verdict?"
+  - Also, because governance is built in from the start, CQOx does not simply output "recommended scores," but checks rules such as Fairness / Frequency Cap / Data Quality in the Governance Center before raising them to the Decision Console
+
+This allows control at a layer above AI on perspectives such as "are we placing excessive burden on specific attributes only?" "are we destroying long-term LTV for short-term profit?" "is contact frequency excessive and causing brand damage?"
+
+- **AI is only a "support role"**
+  - CQOx can use LLMs for "textualization of policy recommendations" and "summary of diagnostic reports," but
+  - AI does not override causal estimates or governance rules
+  - The basis for decisions is purely causal inference and rule-based
+  - It does not automatically give a GO sign without the judgment of governance rules (fairness, frequency caps, quality gates) and final human approval
+  - This design allows us to avoid the state of "not knowing why AI made this judgment" and incorporate only the convenience of AI in a form that can withstand audit, reproducibility, and compliance
+
+In summary:
+
+> Generic AI is good at "finding patterns."  
+> CQOx specializes in estimating the **effects** of policies  
+> and **incorporating those results into decisions** from the perspective of profit and risk.
+
+In other words, no matter how much data is increased, because the questions themselves are different, it does not become a structure where "causality comes for free if we run predictive models larger."
+
+---
+
+### 2.3 vs. Commercial A/B Testing & Experimentation Platforms
+
+### 2.3 vs. Commercial A/B Testing & Experimentation Platforms
+
+| Capability | CQOx | [Optimizely](https://www.optimizely.com/) | [VWO](https://vwo.com/) | [AB Tasty](https://www.abtasty.com/) | [Dynamic Yield](https://www.dynamicyield.com/) |
+|------------|------|------------|-----|----------|---------------|
+| **Causal Inference Methods** | 7 estimators (DR, IPW, DiD, IV, CF, SCM, RD) | A/B test only | A/B test only | A/B test only | A/B test only |
+| **Selection Bias Removal** | Doubly Robust + Propensity Score | ❌ Requires perfect randomization | ❌ Requires perfect randomization | ❌ Requires perfect randomization | ❌ Requires perfect randomization |
+| **Heterogeneous Treatment Effects (CATE)** | ✅ Customer-level effects via Causal Forest | ❌ Average effect only | ❌ Average effect only | △ Pre-defined segments | △ Pre-defined segments |
+| **Counterfactual Simulation** | ✅ Predict ROI before rollout | ❌ Must run experiment | ❌ Must run experiment | ❌ Must run experiment | △ Limited scenarios |
+| **Long-term Effect Prediction** | ✅ DiD + TimeSeries (6-month forecast) | ❌ Short-term only | ❌ Short-term only | ❌ Short-term only | ❌ Short-term only |
+| **Instrumental Variables** | ✅ Handle endogeneity/confounding | ❌ Not supported | ❌ Not supported | ❌ Not supported | ❌ Not supported |
+| **Policy Optimization** | ✅ Pareto Frontier (Profit-Risk-Confidence) | △ Basic rules | ❌ No optimization | △ Basic rules | △ Basic rules |
+| **SQL-based Segmentation** | ✅ Arbitrary WHERE clauses | ❌ UI-locked | ❌ UI-locked | △ Limited | △ Limited |
+| **Deployment** | ✅ Open source, self-hosted, K8s-ready | SaaS only | SaaS only | SaaS only | SaaS only |
+| **Pricing** | **Contact for pricing** | $200k+/year | $100k+/year | $150k+/year | $250k+/year |
+
+**Other Commercial Solutions:**
+- **[Optimize Next](https://optimize-next.com/)** - Google Optimize alternative with similar A/B testing capabilities
+- **[SiTest](https://sitest.jp/)** - Japanese market leader in web optimization (Japan)
+- **[DLPO](https://dlpo.jp/)** - Landing page optimization platform (Japan)
+- **[Juicer](https://juicer.cc/)** - User behavior analytics and personalization (Japan)
+
+**Why CQOx?** CQOx eliminates the need for perfect randomization through causal inference, enabling organizations to measure ROI from observational data (historical campaigns, natural experiments) that commercial tools cannot handle.
+
+---
+
+### 2.4 Differences from Large Language Models (ChatGPT, Claude, GPT-4)
+
+| Capability | CQOx | ChatGPT/Claude/GPT-4 |
+|------------|------|----------------------|
+| **Causality vs Correlation** | ✅ Proves mathematical causation | ❌ Finds statistical correlations |
+| **Counterfactual Reasoning** | ✅ Computes P(Y \| do(X)) via do-calculus | ❌ Cannot reason about interventions |
+| **Selection Bias Handling** | ✅ Doubly Robust, IPW | ❌ Assumes i.i.d. data |
+| **Confidence Intervals** | ✅ Bootstrap CI with p-values | ❌ No statistical guarantees |
+| **Reproducibility** | ✅ Deterministic algorithms | ❌ Non-deterministic sampling |
+| **Domain Expertise** | ✅ Built on Nobel Prize research (Angrist, Imbens, Pearl) | ❌ General-purpose text prediction |
+| **Regulatory Compliance** | ✅ Explainable, auditable | ❌ Black box |
+
+**Example**:
+- **LLM**: "Users who clicked the ad bought 20% more" (correlation)
+- **CQOx**: "Showing the ad *caused* a 23% increase in purchases (95% CI: [18%, 28%], p<0.001) in high-value customers, but -5% in low-value customers" (causation + heterogeneity)
+
+---
+
+### 2.5 Differences from Big Tech (Google / Meta / Netflix / Amazon)
+
+Generally speaking, Big Tech companies like Google / Meta / Netflix / Amazon have internal stacks as follows:
+
+- Large-scale **experimentation platforms** (A/B testing, multi-armed bandits)
+- **Causal inference teams** (uplift, DiD, IV, SCM, RD...) + in-house libraries
+- **Portfolio / explore-exploit optimization** (which experiments and policies to run and how much)
+- **Governance / fairness / content quality** review systems
+
+CQOx can be understood as extracting only the important parts in the marketing context and "packaging them so that external companies can operate with (relatively) fewer people."
+
+**Specific Differences:**
+
+- **Big Tech in-house is superior in scale and customizability**
+  - Big Tech has dedicated causal models, experimental designs, and online inference infrastructure for each product
+  - CQOx does not go that far in hyper-customization, but instead provides a **common framework usable across industries**
+
+- **CQOx has advantages in transparency and onboarding costs**
+  - Big Tech's in-house infrastructure is optimized for "people inside," but it takes a very long time for external people to understand
+  - CQOx is designed so that CMO / marketing staff / DS / operations can discuss while looking at the same UI
+
+- **Focuses on "customer-side decision-making"**
+  - Big Tech platforms are for optimizing their own services
+  - CQOx is different in that it centers on "client-side P&L and governance"
+
+---
+
+### 2.6 Differences from WPP / BCG / Accenture and Other Consultants
+
+Consulting firms like WPP / BCG / Accenture provide marketing effectiveness measurement, MMM, and uplift analysis on a **project basis**.
+
+**Strengths:**
+
+- **Comprehensive support** including story design for management and organizational design
+- Custom model and metric design for individual companies
+
+**Typical Output:**
+
+Taking months to half a year to create slides / PDFs / temporary dashboards and produce reports saying "these policies were effective"
+
+**In contrast, CQOx:**
+
+- **"Standing console," not "one-time analysis"**
+  - Every time data is updated, Δ¥ / risk / CAS / portfolio are updated with the same logic
+  - It is a tool to see "how things are now" every week / every day, not to read reports
+
+- **Can drill down to individual customer-level policies**
+  - Consultant reports tend to focus on channel-level or campaign-level
+  - CQOx assumes policy-level decisions drilled down to segment × channel × timing × frequency
+
+- **Focuses on offline policy learning "before" policies**
+  - Many projects emphasize "post-policy evaluation," but CQOx focuses on offline policy learning (pre-simulation) for "what should we run next?"
+
+---
+
+### 2.7 📊 Competitive Landscape Visualization
+
+CQOx belongs to the same "**incrementality measurement**" space as specialized causal inference and marketing mix modeling (MMM) platforms. However, our positioning and value proposition differ significantly:
+
+**Key Incrementality & Causal Measurement Players:**
+- **[Measured](https://www.measured.com/)** - Marketing incrementality measurement SaaS
+- **[Lifesight](https://lifesight.io/)** - Marketing attribution and incrementality platform
+- **[Liftlab](https://www.liftlab.io/)** - Incrementality testing for growth teams
+- **Haus / Incrmnta / Sellforte** - MMM and incrementality SaaS providers
+
+| Dimension | CQOx | Measured / Lifesight / Liftlab | Haus / Incrmnta / Sellforte | Uplift Consulting Firms |
+|-----------|------|--------------------------------|------------------------------|-------------------------|
+| **Product vs Consulting Dependency** | **Self-serve product**. Upload CSV/Parquet and analysts can run analyses independently without vendor support | Mostly self-serve with onboarding support | Tool + vendor support required. Initial setup and design typically require external resources | Almost fully consulting-driven. Analysis through insight delivery depends on external teams |
+| **Causal Inference Transparency** | **20+ estimators (DR/IPW/DiD/IV/CF/SCM/RD) implemented as OSS**. Algorithms can be validated and extended in-house | Some methodologies disclosed, but proprietary implementations | Some implementations are black-box. Modeling details and reproducible code often not provided | Analysis logic summarized in reports only. Code and models typically not delivered |
+| **Self-Hosting / Security Requirements** | **Self-hostable (on-prem / VPC / K8s)**. Data never leaves your infrastructure | Managed SaaS only. Data must be uploaded to vendor cloud | Primarily managed SaaS. Difficult to use with strict PII or regulatory requirements | Analysis requires data transfer. Operates under NDA but assumes routine data exports |
+| **Multi-Estimator & Quality Gates** | **7 primary estimators + OPE/g-computation combinations**. Quality gates (Overlap, weak IV, RD manipulation tests) enforced in UI | Platform-specific methodology (often single approach) | Focused evaluation on specific methods. Quality inspection internals are tool-dependent and often opaque | Ad-hoc method selection per project. Quality standards vary across engagements |
+
+```mermaid
+quadrantChart
+    title Incrementality Tools: Transparency vs Self-Serve
+    x-axis Low Transparency --> High Transparency
+    y-axis High Services-Dependency --> Self-Serve Product
+    quadrant-1 Self-Serve & Transparent
+    quadrant-2 Research-Oriented
+    quadrant-3 Heavy Consulting & Black-Box
+    quadrant-4 SaaS-Led
+    CQOx: [0.85, 0.90]
+    Measured/Lifesight/Liftlab: [0.45, 0.75]
+    Haus/Incrmnta/Sellforte: [0.40, 0.60]
+    UpliftConsulting: [0.20, 0.30]
+```
+
+---
+
+## 3. User Journey: From Data Upload to Decision Making
+
+> **CQOx is not a collection of disconnected features.**  
+> It is a **single, coherent story** from CSV upload to deployment, designed so that  
 > *"which policy, to whom, and how much"* flows naturally from data to decision to export.
 
-This section follows the **end-to-end workflow** that users experience in CQOx,
-matching the sequence described in `CQOx.PDF`.
+This section explains the **end-to-end workflow** that users experience in CQOx.
+
+<img src="Picture/user_journey_flow_dark.png" alt="CQOx User Journey: From CSV Upload to Action" width="1200"/>
 
 ---
 
-### 4.1 ① Datasets – Bringing in Your Data
+### 3.1 ① Datasets – Bringing in Your Data
 
 **Story Step:** *"What ingredients are in the refrigerator?"*
 
@@ -204,9 +294,9 @@ At this stage, you are **not yet analyzing**—you are simply **uploading and in
 
 **What happens here:**
 
-1. **Upload CSV** or connect to your data warehouse (BigQuery, Snowflake, PostgreSQL, etc.)
+1. **CSV Upload** or connection to data warehouse (BigQuery, Snowflake, PostgreSQL, etc.)
    - Example file: `marketing_campaign_10k_processed.csv`
-   - Contains: `user_id`, `treatment`, `outcome`, `cost`, `channel`, `age`, `income`, demographics, etc.
+   - Contains columns: `user_id`, `treatment`, `outcome`, `cost`, `channel`, `age`, `income`, demographics, etc.
 
 2. **Automatic Schema Detection**
    - CQOx scans the uploaded data and identifies:
@@ -220,18 +310,18 @@ At this stage, you are **not yet analyzing**—you are simply **uploading and in
    - Check column distributions
    - Verify data quality before proceeding to causal design
 
-**At this point, you have NOT done any causal inference yet.**
+**At this point, you have NOT done any causal inference yet.**  
 You have simply confirmed: *"This is the raw material I'm working with."*
 
 ---
 
-### 4.2 ② Causal Design – Creating the Blueprint
+### 3.2 ② Causal Design – Creating the Blueprint
 
-**Story Step:** *"What is treatment A vs B? What is the outcome? Which estimators should we use?"*
+**Story Step:** *"What is the difference between treatment A and B? What is the outcome? Which estimators should we use?"*
 
-This is where you **design the causal inference problem**. You are not running models yet—you are **specifying the blueprint** that will guide all subsequent analysis.
+Here you **design the causal inference problem**. You are not running models yet—you are **specifying the blueprint** that will guide all subsequent analysis.
 
-#### Step 1: Select Estimators & Train Models
+#### Step 1: Estimator Selection and Model Training
 
 <img src="Picture/Screenshot%20from%202025-11-27%2016-38-40.png" alt="Causal Design - Estimator Selection and Training" width="800"/>
 
@@ -239,7 +329,7 @@ This is where you **design the causal inference problem**. You are not running m
 
 - **Dataset Selection**: Choose which uploaded dataset to analyze
 - **Scenario Definition**: Baseline vs Treatment Scenario (e.g., S0 vs S1, A/B Test)
-- **Target Metric**: Define what outcome you want to measure (y = ?)
+- **Target Metric**: Define what outcome variable you want to measure (y = ?)
 - **Auto-Detection of Columns**:
   - **Treatment Column** `(auto-detected)`: `treatment`, `arm`, `variant`
   - **Outcome Column** `(auto-detected)`: `y`, `revenue`, `delta_yen`
@@ -254,7 +344,7 @@ This is where you **design the causal inference problem**. You are not running m
 
 Choose which causal inference methods to run in parallel:
 - ☑ **DR (Doubly Robust)**: Combines propensity score + outcome regression
-- ☑ **IPW (Inverse Propensity Weighting)**: Reweights samples by propensity
+- ☑ **IPW (Inverse Propensity Weighting)**: Reweights samples based on propensity
 - ☐ **DiD (Difference-in-Differences)**: Pre/post comparison with control
 - ☐ **IV (Instrumental Variables)**: Handles unmeasured confounding
 - ☐ **CF (Causal Forest)**: ML-based CATE for heterogeneous effects
@@ -278,13 +368,13 @@ Choose which causal inference methods to run in parallel:
 - **95% CI**: [¥133,177, ¥133,177] (confidence interval)
 - **CAS Score**: `0.15` (Low Confidence) — **This is the key quality metric**
 - **Verdict**: `✓ GO` (automated decision based on CAS, ROI, and risk)
-- **Decision Rationale**: "High expected profit with low risk. Causal quality checks passed."
+- **Decision Rationale**: "Low risk with high expected profit. Causal quality checks passed."
 - **Recommendations**:
   - Proceed with policy deployment
   - Monitor key metrics for first 7 days
   - Set up automated alerts for anomalies
 
-**Button**: `View Detailed Diagnostics →` (leads to Section 4.3)
+**Button**: `View Detailed Diagnostics →` (leads to Section 3.3)
 
 #### Step 4: S0 vs S1 Scenario Comparison
 
@@ -292,7 +382,7 @@ Choose which causal inference methods to run in parallel:
 
 **Side-by-Side Comparison:**
 
-| Metric | S0: Baseline (現状維持) | S1: Treatment (施策実施後) |
+| Metric | S0: Baseline (Status Quo) | S1: Treatment (After Policy Implementation) |
 |--------|------------------------|---------------------------|
 | **Revenue** | ¥0 (No intervention) | **+¥133,177** (Incremental) |
 | **Cost** | ¥0 (Status quo) | ¥251K (Campaign cost) |
@@ -302,24 +392,24 @@ Choose which causal inference methods to run in parallel:
 
 **Key Insight:**
 
-> This comparison answers: *"If we do nothing (S0) vs if we deploy this policy (S1), what is the causal difference in outcomes?"*
+> This comparison answers: *"What is the causal difference in outcomes between doing nothing (S0) and deploying this policy (S1)?"*  
 > The Δ¥ = S1 - S0 is the **incremental profit** attributable to the intervention.
 
 **At this point:**
 - You have specified the causal blueprint (Treatment, Outcome, Covariates)
 - You have run multiple estimators in parallel
-- You have received a **CAS Score** that tells you how trustworthy the estimate is
-- You see the **S0 vs S1 comparison** that quantifies the causal effect
+- You have received a **CAS Score** that indicates how trustworthy the estimate is
+- You have seen the **S0 vs S1 comparison** that quantifies the causal effect
 
-**Next step:** Dive into **Diagnostics** (Section 4.3) to understand *why* the CAS score is what it is.
+**Next step:** Dive deep into **Diagnostics** (Section 3.3) to understand *why* the CAS score is what it is.
 
 ---
 
-### 4.3 ③ Diagnostics & Audit – Causal Quality Assurance
+### 3.3 ③ Diagnostics & Audit – Causal Quality Assurance
 
 **Story Step:** *"Is this causal estimate trustworthy? Can we rely on this GO/CANARY/HOLD decision?"*
 
-After running the causal analysis in Step 4.2, you now need to **validate the quality** of the causal inference. This is where the **CAS (Causal Assurance Score)** is calculated and where you verify that the treatment and control groups are comparable, the model is robust, and the heterogeneous treatment effects are credible.
+After running the causal analysis in Section 3.2, you now need to **validate the quality** of the causal inference. This is where the **CAS (Causal Assurance Score)** is calculated and where you verify that the treatment and control groups are comparable, the model is robust, and the heterogeneous treatment effects are credible.
 
 CQOx provides **two modes** for diagnostics:
 
@@ -427,6 +517,8 @@ This chart shows the overlap region where both treated and control units exist. 
 The green area represents the region where causal inference is valid (where we have both treatment and control units with similar propensity scores).
 
 **Ideal result**: A large, smooth overlap region across the full range of propensity scores.
+
+---
 
 ---
 
@@ -685,19 +777,19 @@ Shows how the treatment effect evolves over time. Stable effects indicate robust
 
 **At this point in the story:**
 
-✅ You have uploaded data (Step 4.1)
-✅ You have designed the causal analysis (Step 4.2)
-✅ You have validated the causal quality (Step 4.3)
+✅ You have uploaded data (Step 3.1)
+✅ You have designed the causal analysis (Step 3.2)
+✅ You have validated the causal quality (Step 3.3)
 
-**Next step:** Present the results to executives in the **Decision Console** (Section 4.4).
+**Next step:** Present the results to executives in the **Decision Console** (Section 3.5).
 
 ---
 
-### 4.4 ④ Policies & Policy Lab – Custom Scenario Builder
+### 3.4 ④ Policies & Policy Lab – Custom Scenario Builder
 
 **Story Step:** *"For each policy candidate, what is the expected uplift? Can I create custom targeting scenarios?"*
 
-After validating causal quality in Diagnostics (4.3), you now have a **policy library** — a collection of treatment recommendations, each with its own ATE, CAS score, ROI, and risk profile.
+After validating causal quality in Diagnostics (3.3), you now have a **policy library** — a collection of treatment recommendations, each with its own ATE, CAS score, ROI, and risk profile.
 
 CQOx provides two capabilities here:
 
@@ -772,7 +864,7 @@ Instead of running costly A/B tests for every segment, you can **pre-test scenar
 
 ---
 
-### 4.5 ⑤ Decision Console – Executive Dashboard
+### 3.5 ⑤ Decision Console – Executive Dashboard
 
 **Story Step:** *"Which policies should we GO/CANARY/HOLD? Show me the one-page executive summary."*
 
@@ -806,7 +898,7 @@ This is the **Pareto Frontier visualization** showing the tradeoff between **Pro
 
 **Decision Verdicts:**
 
-Based on the automated decision logic (see `decision_flow_logic.png`):
+Based on the automated decision logic (see `decision_flow_logic_dark.png`):
 
 - ✅ **GO**: High CAS (> 0.7) + High ROI (> 1.5x) + Low Risk
 - ⚠️ **CANARY**: Medium CAS (0.4-0.7) + Moderate ROI + Medium Risk → Test on 10-30% of users first
@@ -821,7 +913,7 @@ Looking at the chart, we can see several policy candidates:
 
 ---
 
-### 4.6 ⑥ Portfolio – Marketing Portfolio Optimization
+### 3.6 ⑥ Portfolio – Marketing Portfolio Optimization
 
 **Story Step:** *"I don't want to run just one policy. Which combination of policies maximizes ROI under budget constraints?"*
 
@@ -876,7 +968,7 @@ Inputs:
   ```
 - **Max Frequency Cap**: Maximum impressions per user (e.g., 10)
 
-Action:
+Actions:
 - **Check Compliance**: Flag users/campaigns exceeding frequency caps
 
 **3. Quality Gates Overview**
@@ -893,7 +985,7 @@ Timestamped audit trail of all rule violations:
 - Which policy violated which rule
 - When the violation occurred
 - Severity level
-- Action taken (warned, blocked, etc.)
+- Actions taken (warned, blocked, etc.)
 
 ---
 
@@ -959,7 +1051,7 @@ The **Scenario Builder** interface for creating custom targeting scenarios.
 
 ---
 
-### 4.7 ⑦ Digital Twin – Customer Simulation
+### 3.7 ⑦ Digital Twin – Customer Simulation
 
 **Story Step:** *"Before deploying to real customers, can I simulate the impact on different customer personas?"*
 
@@ -1075,7 +1167,7 @@ Applies the causal model to all personas and shows predicted outcomes **before d
 
 ---
 
-### 4.8 ⑨ Experiment Studio – A/B Test Management
+### 3.8 ⑧ Experiment Studio – A/B Test Management
 
 **Story Step:** *"I need to run controlled experiments. How do I set up A/B tests and analyze results?"*
 
@@ -1193,7 +1285,7 @@ Based on results:
 
 ---
 
-### 4.9 ⑩ Governance Center – Fairness & Compliance
+### 3.9 ⑨ Governance Center – Fairness & Compliance
 
 **Story Step:** *"Before deployment, I need to ensure this policy doesn't violate fairness, quality, or compliance rules."*
 
@@ -1336,64 +1428,27 @@ The **Governance Center** is the final checkpoint before any policy goes live.
 
 **At this point in the story:**
 
-✅ You have uploaded data (4.1)
-✅ You have designed causal analysis (4.2)
-✅ You have validated quality (4.3)
-✅ You have reviewed policy candidates (4.4)
-✅ You have made GO/CANARY/HOLD decisions (4.5)
-✅ You have optimized portfolio (4.6)
-✅ You have simulated on personas (4.7)
-✅ You have run experiments (4.8)
-✅ You have passed governance checks (4.9)
+✅ You have uploaded data (3.1)
+✅ You have designed causal analysis (3.2)
+✅ You have validated quality (3.3)
+✅ You have reviewed policy candidates (3.4)
+✅ You have made GO/CANARY/HOLD decisions (3.5)
+✅ You have optimized portfolio (3.6)
+✅ You have simulated on personas (3.7)
+✅ You have run experiments (3.8)
+✅ You have passed governance checks (3.9)
 
-**Next step:** Export approved policies to production systems (Export Gate - Section 5).
-
----
-
-## 5. System Architecture
-
-### System Architecture Overview
-
-<img src="Picture/system_architecture.png" alt="CQOx System Architecture" width="1200"/>
-
-*Production-Ready Causal Inference Platform Architecture*
-
-### Causal Inference Workflow
-
-<img src="Picture/causal_inference_workflow.png" alt="Causal Inference Workflow" width="1200"/>
-
-*From Raw Data to Actionable Causal Estimates*
-
-### Decision Flow Logic
-
-<img src="Picture/decision_flow_logic.png" alt="Automated GO/CANARY/HOLD Logic" width="1200"/>
-
-*Evidence-based policy approval with multi-dimensional quality gates*
+**Next step:** Export approved policies to production systems (Export Gate - Section 4).
 
 ---
 
-## Core Technology: 7 Causal Inference Estimators
+## 4. 7 Causal Inference Estimators: Core Technology
 
 ### Why 7 Different Methods?
 
 **Each estimator is optimal for different data structures and causal challenges.**
 
-```
-Observational Data
-       ↓
-   What's the challenge?
-       ↓
-┌──────┴──────┬──────────┬──────────┬──────────┬──────────┬──────────┐
-│             │          │          │          │          │          │
-Selection   Time      Endogeneity  Hetero-   Aggregate  Threshold
-Bias        Series                 geneity    Level      Policy
-│             │          │          │          │          │
-DR/IPW       DiD         IV         CF         SCM        RD
-│             │          │          │          │          │
-└──────┬──────┴──────────┴──────────┴──────────┴──────────┘
-       ↓
-  Causal Effect τ̂(x)
-```
+<img src="Picture/causal_inference_workflow_dark.png" alt="CQOx Causal Inference Workflow" width="1200"/>
 
 ### 1. Doubly Robust (DR-Learner)
 
@@ -1792,96 +1847,29 @@ Assumptions:
 
 ---
 
-## 6. What Makes CQOx Different: Comparative Analysis
+## 5. System Architecture
 
-### vs. Commercial A/B Testing & Experimentation Platforms
+### System Architecture Overview
 
-| Capability | CQOx | [Optimizely](https://www.optimizely.com/) | [VWO](https://vwo.com/) | [AB Tasty](https://www.abtasty.com/) | [Dynamic Yield](https://www.dynamicyield.com/) |
-|------------|------|------------|-----|----------|---------------|
-| **Causal Inference Methods** | 7 estimators (DR, IPW, DiD, IV, CF, SCM, RD) | A/B test only | A/B test only | A/B test only | A/B test only |
-| **Selection Bias Removal** | Doubly Robust + Propensity Score | ❌ Requires perfect randomization | ❌ Requires perfect randomization | ❌ Requires perfect randomization | ❌ Requires perfect randomization |
-| **Heterogeneous Treatment Effects (CATE)** | ✅ Customer-level effects via Causal Forest | ❌ Average effect only | ❌ Average effect only | △ Pre-defined segments | △ Pre-defined segments |
-| **Counterfactual Simulation** | ✅ Predict ROI before rollout | ❌ Must run experiment | ❌ Must run experiment | ❌ Must run experiment | △ Limited scenarios |
-| **Long-term Effect Prediction** | ✅ DiD + TimeSeries (6-month forecast) | ❌ Short-term only | ❌ Short-term only | ❌ Short-term only | ❌ Short-term only |
-| **Instrumental Variables** | ✅ Handle endogeneity/confounding | ❌ Not supported | ❌ Not supported | ❌ Not supported | ❌ Not supported |
-| **Policy Optimization** | ✅ Pareto Frontier (Profit-Risk-Confidence) | △ Basic rules | ❌ No optimization | △ Basic rules | △ Basic rules |
-| **SQL-based Segmentation** | ✅ Arbitrary WHERE clauses | ❌ UI-locked | ❌ UI-locked | △ Limited | △ Limited |
-| **Deployment** | ✅ Open source, self-hosted, K8s-ready | SaaS only | SaaS only | SaaS only | SaaS only |
-| **Pricing** | **Contact for pricing** | $200k+/year | $100k+/year | $150k+/year | $250k+/year |
+<img src="Picture/system_architecture_dark.png" alt="CQOx System Architecture" width="1200"/>
 
-**Other Commercial Solutions:**
-- **[Optimize Next](https://optimize-next.com/)** - Google Optimize alternative with similar A/B testing capabilities
-- **[SiTest](https://sitest.jp/)** - Japanese market leader in web optimization (Japan)
-- **[DLPO](https://dlpo.jp/)** - Landing page optimization platform (Japan)
-- **[Juicer](https://juicer.cc/)** - User behavior analytics and personalization (Japan)
+*Production-Ready Causal Inference Platform Architecture*
 
-**Why CQOx?** CQOx eliminates the need for perfect randomization through causal inference, enabling organizations to measure ROI from observational data (historical campaigns, natural experiments) that commercial tools cannot handle.
+### Causal Inference Workflow
 
-### 📊 Competitive Landscape Visualization
+<img src="Picture/causal_inference_workflow.png" alt="Causal Inference Workflow" width="1200"/>
 
-CQOx belongs to the same "**incrementality measurement**" space as specialized causal inference and marketing mix modeling (MMM) platforms. However, our positioning and value proposition differ significantly:
+*From Raw Data to Actionable Causal Estimates*
 
-**Key Incrementality & Causal Measurement Players:**
-- **[Measured](https://www.measured.com/)** - Marketing incrementality measurement SaaS
-- **[Lifesight](https://lifesight.io/)** - Marketing attribution and incrementality platform
-- **[Liftlab](https://www.liftlab.io/)** - Incrementality testing for growth teams
-- **Haus / Incrmnta / Sellforte** - MMM and incrementality SaaS providers
+### Decision Flow Logic
 
-| Dimension | CQOx | Measured / Lifesight / Liftlab | Haus / Incrmnta / Sellforte | Uplift Consulting Firms |
-|-----------|------|--------------------------------|------------------------------|-------------------------|
-| **Product vs Consulting Dependency** | **Self-serve product**. Upload CSV/Parquet and analysts can run analyses independently without vendor support | Mostly self-serve with onboarding support | Tool + vendor support required. Initial setup and design typically require external resources | Almost fully consulting-driven. Analysis through insight delivery depends on external teams |
-| **Causal Inference Transparency** | **20+ estimators (DR/IPW/DiD/IV/CF/SCM/RD) implemented as OSS**. Algorithms can be validated and extended in-house | Some methodologies disclosed, but proprietary implementations | Some implementations are black-box. Modeling details and reproducible code often not provided | Analysis logic summarized in reports only. Code and models typically not delivered |
-| **Self-Hosting / Security Requirements** | **Self-hostable (on-prem / VPC / K8s)**. Data never leaves your infrastructure | Managed SaaS only. Data must be uploaded to vendor cloud | Primarily managed SaaS. Difficult to use with strict PII or regulatory requirements | Analysis requires data transfer. Operates under NDA but assumes routine data exports |
-| **Multi-Estimator & Quality Gates** | **7 primary estimators + OPE/g-computation combinations**. Quality gates (Overlap, weak IV, RD manipulation tests) enforced in UI | Platform-specific methodology (often single approach) | Focused evaluation on specific methods. Quality inspection internals are tool-dependent and often opaque | Ad-hoc method selection per project. Quality standards vary across engagements |
+<img src="Picture/decision_flow_logic_dark.png" alt="Automated GO/CANARY/HOLD Logic" width="1200"/>
 
-```mermaid
-quadrantChart
-    title Incrementality Tools: Transparency vs Self-Serve
-    x-axis Low Transparency --> High Transparency
-    y-axis High Services-Dependency --> Self-Serve Product
-    quadrant-1 Self-Serve & Transparent
-    quadrant-2 Research-Oriented
-    quadrant-3 Heavy Consulting & Black-Box
-    quadrant-4 SaaS-Led
-    CQOx: [0.85, 0.90]
-    Measured/Lifesight/Liftlab: [0.45, 0.75]
-    Haus/Incrmnta/Sellforte: [0.40, 0.60]
-    UpliftConsulting: [0.20, 0.30]
-```
-
-### vs. Causal Inference Libraries (EconML, DoWhy, CausalML)
-
-| Feature | CQOx | EconML | DoWhy | CausalML |
-|---------|------|--------|-------|----------|
-| **Production-Ready UI** | ✅ Full web application | ❌ Python library only | ❌ Python library only | ❌ Python library only |
-| **No-Code Interface** | ✅ Upload CSV → Get decisions | ❌ Code required | ❌ Code required | ❌ Code required |
-| **Automated Decision Engine** | ✅ Go/Canary/Hold verdicts | ❌ Manual interpretation | ❌ Manual interpretation | ❌ Manual interpretation |
-| **Multi-Tenancy** | ✅ RLS + RBAC | ❌ Single user | ❌ Single user | ❌ Single user |
-| **Distributed Processing** | ✅ Celery + RabbitMQ | ❌ Local compute | ❌ Local compute | ❌ Local compute |
-| **Real-time Monitoring** | ✅ Prometheus + Grafana | ❌ None | ❌ None | ❌ None |
-| **API-first Architecture** | ✅ FastAPI + OpenAPI | ❌ Not applicable | ❌ Not applicable | ❌ Not applicable |
-
-**CQOx = EconML + DoWhy + CausalML + Production Infrastructure + Enterprise UI**
-
-### vs. Large Language Models (ChatGPT, Claude, GPT-4)
-
-| Capability | CQOx | ChatGPT/Claude/GPT-4 |
-|------------|------|----------------------|
-| **Causality vs Correlation** | ✅ Proves mathematical causation | ❌ Finds statistical correlations |
-| **Counterfactual Reasoning** | ✅ Computes P(Y \| do(X)) via do-calculus | ❌ Cannot reason about interventions |
-| **Selection Bias Handling** | ✅ Doubly Robust, IPW | ❌ Assumes i.i.d. data |
-| **Confidence Intervals** | ✅ Bootstrap CI with p-values | ❌ No statistical guarantees |
-| **Reproducibility** | ✅ Deterministic algorithms | ❌ Non-deterministic sampling |
-| **Domain Expertise** | ✅ Built on Nobel Prize research (Angrist, Imbens, Pearl) | ❌ General-purpose text prediction |
-| **Regulatory Compliance** | ✅ Explainable, auditable | ❌ Black box |
-
-**Example**:
-- **LLM**: "Users who clicked the ad bought 20% more" (correlation)
-- **CQOx**: "Showing the ad *caused* a 23% increase in purchases (95% CI: [18%, 28%], p<0.001) in high-value customers, but -5% in low-value customers" (causation + heterogeneity)
+*Evidence-based policy approval with multi-dimensional quality gates*
 
 ---
 
-## 7. Academic Foundation: Standing on Giants' Shoulders
+## 6. Academic Foundation: Standing on Giants' Shoulders
 
 CQOx implements cutting-edge research from the world's top econometricians and computer scientists:
 

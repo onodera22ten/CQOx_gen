@@ -1,24 +1,25 @@
 # CQOx – 因果マーケティング意思決定プラットフォーム
 
 **📖 Documentation**
-[🏠 README (Quick Start)](README.md) | [🇺🇸 English (Full)](README_en.md) | **🇯🇵 日本語 (Full)**
+[🇺🇸 English (Full)](README_en.md) | **🇯🇵 日本語 (Full)**
 
 ---
 
-**CQOx（シーキューオーエックス）** は、マーケティング施策の **因果効果** と **利益・リスク・公平性** を一枚のコンソールにまとめるためのプラットフォームです。
+**CQOx** は、「AI がブラックボックス的に結果を出すツール」ではなく、
 
-### 📥 入力：生データから始める
+因果推論・実験・ポートフォリオ最適化・ガバナンス をひとつに束ねて、
 
-生のイベントデータ（CSV やテーブル抽出）をアップロードするだけで、CQOx が自動で分析を開始します。
+Big Tech が社内で使っているような意思決定コンソールを、
 
-### ⚙️ 処理：高度な因果推論エンジン
+一般企業でも回せる形にしたプラットフォーム です。
 
-**因果推論・実験・ポートフォリオ最適化・ガバナンス（公平性や頻度上限）** を自動で実行し、信頼性の高い結果を生成します。
+WPP / BCG / Accenture のようなプロジェクト型の分析とも、
 
-### 📊 出力：意思決定に直結する結果
+汎用 AI ツールとも違い、
 
-- **インクリメンタル利益（Δ¥）** と **リスク** を推定
-- **実行すべき施策（Go）** / **慎重にテストすべき施策（Canary）** / **止めるべき施策（Hold）** を自動判定
+「この施策は本当にいくら儲けたのか」と
+
+「どの組み合わせで走らせるのが一番合理的か」を、因果推論を軸として数字で答えて意志決定にまで繋げるツールです。
 
 ---
 
@@ -250,13 +251,13 @@ CQOx は、専門的な因果推論およびマーケティングミックスモ
 
 ```mermaid
 quadrantChart
-    title インクリメンタリティツール：透明性 vs セルフサービス
-    x-axis 低い透明性 --> 高い透明性
-    y-axis 高いサービス依存 --> セルフサービスプロダクト
-    quadrant-1 セルフサービス & 透明
-    quadrant-2 研究志向
-    quadrant-3 コンサル依存 & ブラックボックス
-    quadrant-4 SaaS主導
+    title Incrementality Tools: Transparency vs Self-Serve
+    x-axis Low Transparency --> High Transparency
+    y-axis High Services-Dependency --> Self-Serve Product
+    quadrant-1 Self-Serve & Transparent
+    quadrant-2 Research-Oriented
+    quadrant-3 Heavy Consulting & Black-Box
+    quadrant-4 SaaS-Led
     CQOx: [0.85, 0.90]
     Measured/Lifesight/Liftlab: [0.45, 0.75]
     Haus/Incrmnta/Sellforte: [0.40, 0.60]
