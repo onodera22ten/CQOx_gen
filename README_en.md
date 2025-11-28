@@ -334,30 +334,37 @@ CQOx provides **two modes** for diagnostics:
 
 **Goal:** Get a quick GO/CANARY/HOLD verdict with confidence level at a glance.
 
-##### CAS Score Overview & Decision Verdict
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-38-40.png" alt="ViewerMode - CAS Score Overview and Verdict" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27%2016-40-49.png" alt="ViewerMode - CAS Score Overview" width="800"/>
 
 **What you see:**
 
-- **CAS Score**: 0.15 (Low Confidence)
-- **Verdict**: ✓ GO (automated recommendation)
-- **Expected Δ¥**: +¥133,177 (incremental profit)
-- **95% Confidence Interval**: [¥133,177, ¥133,177]
-- **Quality gates summary**: Quick visual indicators for Overlap, Balance, Sensitivity
+- **CAS Score**: 0.15 (Low Confidence / Quality Level: LOW)
+- **Overall Quality**: LOW (CAS Score: 0.15)
+- **Validation Status**: 6/9 diagnostic checks passed successfully
+- **Confidence Level**: MODERATE (Robustness: Γ=1.0)
+
+**Executive Summary:**
+
+- **Quality Assessment**: The causal analysis has achieved a LOW quality rating with a Causal Assurance Score (CAS) of 0.15. This score indicates limited confidence in the causal estimates.
+- **Validation Results**: 6 out of 9 diagnostic checks passed successfully. 3 area(s) require attention.
+- **Robustness**: The analysis shows moderate robustness to potential unmeasured confounding (Γ = 1.00). Consider additional validation if unmeasured confounders are plausible.
 
 This single screen answers: *"Can I trust this result enough to make a decision?"*
 
-##### Overlap & Common Support Check
+---
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-39-56.png" alt="ViewerMode - Overlap and Common Support" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-00.png" alt="Key Quality Indicators" width="800"/>
 
-**Why this matters:**
+**Key Quality Indicators:**
 
-If the treatment and control groups have **no overlap** in propensity scores (probability of receiving treatment), causal inference breaks down. This chart shows whether there is sufficient **common support** between the two groups.
+| Indicator | Status | Details |
+|-----------|--------|---------|
+| **Data Quality** | ⚠️ WARN | Covariate balance: SMD 2.541 (threshold: 0.1) |
+| **Statistical Power** | ⚠️ WARN | Common support: 2.9% (threshold: 5%) |
+| **Effect Reliability** | ⚠️ WARN | Sensitivity: Γ=1.00 (threshold: 1.3) |
+| **Model Performance** | ✅ PASS | CATE calibration: 0.82 (target: > 0.70) |
 
-- **Green zone**: Good overlap → causal estimates are reliable
-- **Red zone**: Poor overlap → extrapolation risk, unreliable estimates
+**What this means**: While the CATE model performs well, there are concerns about data quality (poor covariate balance), statistical power (low common support), and sensitivity to unmeasured confounding.
 
 ---
 
@@ -367,235 +374,312 @@ If the treatment and control groups have **no overlap** in propensity scores (pr
 
 **Goal:** Perform rigorous quality checks before deploying the policy to production.
 
-CQOx runs **13 diagnostic checks** across 4 categories:
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-20.png" alt="Analyst Mode Overview Dashboard" width="800"/>
 
-1. **Overlap & Common Support**
-2. **Covariate Balance**
-3. **Sensitivity Analysis**
-4. **Heterogeneous Treatment Effect (CATE) Analysis**
+**Diagnostic Tabs Available:**
 
----
+- **Overview** – Summary of all diagnostic checks
+- **Overlap** – Propensity score overlap and common support
+- **Balance** – Covariate balance between treatment and control
+- **Sensitivity** – Robustness to unmeasured confounding
+- **CATE Analysis** – Heterogeneous treatment effects
+- **Refutation Tests** – Placebo and falsification tests
+- **Advanced** – Network effects, temporal dynamics, heterogeneity
 
-##### 1. Common Support Diagnostic
+**Quick Status:**
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-40-16.png" alt="AnalystMode - Common Support Histogram" width="800"/>
-
-**What this shows:**
-
-- Propensity score distribution for treatment (blue) vs control (orange)
-- Overlapping area indicates regions where causal inference is valid
-- Non-overlapping tails indicate extrapolation risk
-
-**Ideal result**: Large overlap between the two distributions.
-
----
-
-##### 2. Balance Check: Standardized Mean Difference (SMD)
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-40-49.png" alt="AnalystMode - SMD Balance Check" width="800"/>
-
-**What this shows:**
-
-- **Before matching**: Raw SMD for each covariate (age, income, recency, etc.)
-- **After matching/weighting**: Adjusted SMD after propensity score weighting or matching
-
-**Threshold**: SMD < 0.1 is considered good balance (vertical dashed line)
-
-**Interpretation**: If all covariates fall within the green zone after adjustment, the treatment and control groups are **balanced** and comparable.
+- ✅ **Love Plot**: PASSED (covariate balance after matching)
+- ❌ **Covariate Balance (SMD)**: WARNING (Score: 2.54, threshold: 0.1)
+- ❌ **Overlap / Positivity**: WARNING (Score: 0.97, threshold: 0.05)
+- ✅ **Propensity Density**: PASSED
+- ❌ **Sensitivity (Γ)**: WARNING (Score: 1.00, threshold: 1.3)
+- ✅ **E-value**: PASSED (Score: 265.85, threshold: 1.5)
 
 ---
 
-##### 3. Love Plot (Covariate Balance Visualization)
+##### Overlap & Positivity Diagnostics
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-41-00.png" alt="AnalystMode - Love Plot" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-31.png" alt="Overlap Positivity Diagnostics" width="800"/>
 
-**What this shows:**
+**Metrics:**
 
-- X-axis: Standardized Mean Difference (SMD)
-- Y-axis: List of covariates
-- **Blue dots**: Before adjustment
-- **Red dots**: After adjustment
+- **Overlap Score**: 0.029 (Poor) – Measures the extent of overlap between treatment and control propensity distributions
+- **Violation Rate**: 97.1% (Threshold: 5%) – Percentage of units outside common support region
+- **Common Support**: 98.2% (Units in overlap region) – Percentage of units where both treatment and control exist
 
-**Ideal result**: All red dots cluster near 0, indicating perfect balance.
+**Propensity Score Distribution:**
+
+The chart shows propensity score distributions for treated (blue) and control (red) groups. Good overlap ensures that we can find comparable units across treatment conditions, which is essential for valid causal inference. The propensity score distribution should have substantial overlap between groups.
+
+**Interpretation**: The overlap score of 0.029 indicates **poor overlap**, which raises concerns about the validity of causal estimates in regions with limited common support.
 
 ---
 
-##### 4. Covariate Balance Table
+<img src="Picture/Screenshot%20from%202025-11-27%2016-41-50.png" alt="Common Support Region" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-41-31.png" alt="AnalystMode - Balance Table with Statistics" width="800"/>
+**Common Support Region:**
 
-**What this shows:**
+This chart shows the overlap region where both treated and control units exist. Higher overlap values indicate better positivity.
 
-Detailed statistical table with:
+- **X-axis**: Propensity Score (probability of receiving treatment)
+- **Y-axis**: Overlap Density
 
-- **Mean (Treatment)** vs **Mean (Control)**
-- **SMD Before** and **SMD After**
-- **Variance Ratio**
-- **KS Statistic** (Kolmogorov-Smirnov test for distributional balance)
+The green area represents the region where causal inference is valid (where we have both treatment and control units with similar propensity scores).
+
+**Ideal result**: A large, smooth overlap region across the full range of propensity scores.
+
+---
+
+##### Covariate Balance Diagnostics
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-09.png" alt="Covariate Balance Diagnostics" width="800"/>
+
+**Balance Metrics:**
+
+- **Max SMD (After)**: 2.541 (Threshold: 0.100) – Worst covariate imbalance after matching/weighting
+- **Balanced Covariates**: 8/8 (All covariates balanced after matching)
+- **Mean SMD (After)**: 0.042 (Average across covariates)
+
+**Love Plot - Standardized Mean Differences:**
+
+- **X-axis**: Standardized Mean Difference (SMD)
+- **Y-axis**: List of covariates (Age, Income, Education, Experience, Location_Urban, Gender_Male, Married, Children)
+- **Red dots (●)**: Before Matching
+- **Green dots (●)**: After Matching
+
+**Interpretation**: Points should be close to zero (vertical line at SMD = 0) for good balance. The plot shows that after matching/weighting, most covariates are well-balanced (green dots near zero), indicating that matching procedure has successfully created comparable treatment and control groups.
+
+**Threshold**: SMD < 0.1 is generally considered good balance (indicated by dashed vertical lines).
+
+---
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-22.png" alt="Covariate Balance Table" width="800"/>
+
+**Detailed Balance Statistics:**
+
+| Covariate | SMD BEFORE | SMD AFTER | IMPROVEMENT | STATUS |
+|-----------|------------|-----------|-------------|--------|
+| Age | -0.154 | 0.042 | ↓ 0.112 | ✅ BALANCED |
+| Income | -0.111 | 0.026 | ↓ 0.084 | ✅ BALANCED |
+| Education | -0.172 | 0.018 | ↓ 0.154 | ✅ BALANCED |
+| Experience | 0.195 | 0.048 | ↓ 0.148 | ✅ BALANCED |
+| Location_Urban | -0.166 | -0.006 | ↓ 0.159 | ✅ BALANCED |
+| Gender_Male | -0.091 | -0.031 | ↓ 0.059 | ✅ BALANCED |
+| Married | 0.184 | -0.016 | ↓ 0.168 | ✅ BALANCED |
+| Children | -0.157 | 0.020 | ↓ 0.137 | ✅ BALANCED |
+
+**Balance Assessment (Green Box):**
+
+All covariates show good balance (SMD < 0.1) after matching. The matching procedure has successfully created comparable treatment and control groups. This supports the assumption that treated and control units are exchangeable conditional on observed covariates.
 
 **Usage**: Analysts can export this table to verify that all covariates meet balance criteria before approving the causal estimate.
 
 ---
 
-##### 5. Sensitivity Analysis Overview
+##### Sensitivity Analysis
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-41-50.png" alt="AnalystMode - Sensitivity Analysis Overview" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-39.png" alt="Sensitivity Analysis Overview" width="800"/>
 
-**What this shows:**
+**Sensitivity Metrics:**
 
-Summary of sensitivity tests:
+- **Critical Γ (Gamma)**: 1.00 (Sensitive) – The critical value where conclusions would change
+- **E-value**: 265.85 (Minimum confounder strength) – Strength of unmeasured confounding needed to explain away the effect
+- **Robustness Level**: MODERATE (Overall assessment)
 
-- **Rosenbaum Bounds**: How robust is the estimate to hidden confounders?
-- **E-value**: What is the minimum strength of unmeasured confounding needed to nullify the result?
-- **Refutation Tests**: Placebo tests, random treatment, etc.
+**Rosenbaum Bounds (Γ Sensitivity):**
 
-**Purpose**: Answer the question: *"If there is an unmeasured confounder, how strong would it need to be to invalidate this result?"*
+This chart shows how p-values change as we vary the strength of potential unmeasured confounding (Γ). The critical Γ is where conclusions would change at the 0.05 significance level.
 
----
-
-##### 6. Rosenbaum Bounds (Γ Sensitivity)
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-42-09.png" alt="AnalystMode - Rosenbaum Bounds Γ Analysis" width="800"/>
-
-**What this shows:**
-
-- **Γ (Gamma)** values on X-axis represent the strength of hidden confounding
-- **p-value** on Y-axis shows whether the treatment effect remains significant
-- **Critical Γ**: The point where the effect becomes non-significant
+- **X-axis**: Strength of unmeasured confounding (Γ values)
+- **Y-axis**: p-value
+- **Orange line**: Critical Γ = 1.00 (where effect becomes non-significant)
+- **Blue line**: α = 0.05 (significance threshold)
 
 **Interpretation**:
-
-- Γ = 1.0 → No hidden confounding
-- Γ = 1.5 → Hidden confounder would need to increase odds of treatment by 50%
-- Γ = 2.0 → Hidden confounder would need to double the odds of treatment
-
-**Ideal result**: Effect remains significant even at Γ = 1.5 or higher.
+- Γ = 1.00 means that even a weak unmeasured confounder could invalidate our conclusions
+- The analysis shows **moderate robustness** to unmeasured confounding
 
 ---
 
-##### 7. Gamma (Γ) Interpretation Table
+<img src="Picture/Screenshot%20from%202025-11-27%2016-42-52.png" alt="Gamma Interpretation and E-value" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-42-22.png" alt="AnalystMode - Gamma Interpretation Guide" width="800"/>
-
-**What this shows:**
-
-Human-readable interpretation of Γ values:
+**Γ (Gamma) Interpretation:**
 
 | Γ Value | Interpretation |
 |---------|---------------|
-| 1.0 | No unmeasured confounding |
-| 1.1-1.3 | Weak unmeasured confounding |
-| 1.3-1.5 | Moderate unmeasured confounding |
-| 1.5-2.0 | Strong unmeasured confounding |
-| > 2.0 | Very strong unmeasured confounding |
+| **Γ = 1.0** | No unmeasured confounding. This is the baseline assumption where our estimates are valid. |
+| **Γ = 1.0 (Critical Value)** | An unmeasured confounder would need to increase the odds of treatment assignment by 1.0x to change our conclusions at the 0.05 significance level. |
+| **Γ = 2.0** | Considered moderately robust. An unmeasured confounder would need to double the odds of treatment to invalidate conclusions. |
+| **Γ > 3.0** | Highly robust. Would require very strong unmeasured confounding to change conclusions. |
 
-**Usage**: Helps non-specialists understand sensitivity analysis results.
+**E-value Analysis:**
+
+**E = 265.85**
+
+The E-value quantifies the minimum strength of association an unmeasured confounder would need to have with both treatment and outcome to explain away the observed effect.
+
+**Interpretation**: An unmeasured confounder would need to be associated with both treatment and outcome by a risk ratio of at least 265.85-fold each, above and beyond the measured covariates, to explain away the observed treatment effect.
+
+**Conclusion**: E-value > 2.0 indicates robustness to unmeasured confounding.
 
 ---
 
-##### 8. E-value Analysis
+##### CATE Analysis & Model Performance
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-42-39.png" alt="AnalystMode - E-value Calculation" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27%2016-43-21.png" alt="CATE Analysis Model Performance" width="800"/>
 
-**What this shows:**
+**CATE Metrics:**
 
-**E-value**: The minimum strength of association (on the risk ratio scale) that an unmeasured confounder would need to have with both the treatment and outcome to explain away the observed effect.
+- **CATE Calibration Score**: 0.82 (Target: > 0.70) – Measures how well predicted treatment effects match observed effects
+- **Qini Coefficient**: 0.24 (Uplift model quality) – Measures targeting ability
+- **Heterogeneity Index**: High (Significant effect variation) – Indicates substantial variation in treatment effects across subpopulations
 
-**Example**:
+**Qini Curve - Uplift Model Performance:**
 
-- E-value = 2.5 means: An unmeasured confounder would need to increase the risk of both treatment and outcome by 2.5x to nullify the observed effect.
+The Qini curve evaluates how well the model ranks individuals by treatment benefit. Higher curves indicate better targeting ability.
+
+- **X-axis**: Fraction of Population Targeted (sorted by predicted uplift)
+- **Y-axis**: Qini Value (cumulative incremental outcome)
+- **Cyan line**: Qini Curve (actual model performance)
+- **Dashed line**: Random baseline (no targeting)
 
 **Interpretation**:
+- The **steep curve** indicates the model successfully identifies high-uplift users
+- A **flat curve** would indicate no predictive power (random targeting)
 
-- E-value > 2.0 → Robust to unmeasured confounding
-- E-value < 1.5 → Fragile to unmeasured confounding
-
----
-
-##### 9. Conditional Average Treatment Effect (CATE) Analysis
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-42-52.png" alt="AnalystMode - CATE Heterogeneity Analysis" width="800"/>
-
-**What this shows:**
-
-**CATE** = Heterogeneous treatment effects across different subgroups
-
-- **Age groups**: Young users vs Seniors
-- **Income brackets**: Low-income vs High-income
-- **Engagement levels**: High-frequency vs Low-frequency
-
-**Why this matters**: A policy might have **strong positive effects** on one segment but **negative effects** on another. CATE analysis reveals these heterogeneous effects.
-
-**Usage**: Inform **targeted policies** in the Policy Lab (Section 4.8).
+**Business Implication**: If the curve plateaus early, you can **target only the top 20-30% of users** and still capture 80% of the total uplift, maximizing ROI.
 
 ---
 
-##### 10. Qini Curve (Uplift Modeling)
+<img src="Picture/Screenshot%20from%202025-11-27%2016-43-31.png" alt="CATE Calibration Plot" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-43-21.png" alt="AnalystMode - Qini Curve for Uplift" width="800"/>
+**CATE Calibration Plot:**
 
-**What this shows:**
-
-- **X-axis**: Fraction of population targeted (sorted by predicted uplift)
-- **Y-axis**: Cumulative incremental outcome (Δ¥)
-
-**Interpretation**:
-
-- **Steep curve** → Model successfully identifies high-uplift users
-- **Flat curve** → Model has no predictive power (random targeting)
-
-**Business implication**: If the curve plateaus early, you can **target only the top 20% of users** and still capture 80% of the total uplift.
-
----
-
-##### 11. CATE Calibration Plot
-
-<img src="Picture/Screenshot%20from%202025-11-27%2016-43-31.png" alt="AnalystMode - CATE Calibration Check" width="800"/>
-
-**What this shows:**
+Compares predicted CATE values with observed treatment effects. Points should fall close to the diagonal line for well-calibrated models.
 
 - **X-axis**: Predicted CATE (model's predicted treatment effect)
 - **Y-axis**: Observed CATE (actual treatment effect in validation set)
-- **Diagonal line**: Perfect calibration
+- **Diagonal line (dashed)**: Perfect calibration
+- **Cyan dots**: Individual predictions with confidence intervals
 
 **Interpretation**:
 
-- Points near the diagonal → Well-calibrated model
-- Points far from diagonal → Model is over/under-estimating treatment effects
+- Points **near the diagonal** → Well-calibrated model
+- Points **far from diagonal** → Model is over/under-estimating treatment effects
+
+**CATE Model Assessment (Green Box):**
+
+- Qini curve shows strong uplift model performance with area significantly above random baseline
+- Calibration score of 0.82 indicates good agreement between predicted and observed treatment effects
+- CATE distribution reveals significant heterogeneity, supporting personalized treatment strategies
+- Model successfully identifies high-benefit and low-benefit subpopulations
 
 **Why this matters**: A poorly calibrated model might recommend targeting users with **low actual uplift**, wasting marketing budget.
 
 ---
 
-##### 12. Refutation Tests (Placebo Checks)
+##### Refutation Tests & Robustness Checks
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-41-20.png" alt="AnalystMode - Refutation Tests Summary" width="800"/>
+<img src="Picture/Screenshot%20from%202025-11-27%2016-44-03.png" alt="Refutation Tests" width="800"/>
 
-**What this shows:**
+**Refutation Tests:**
 
-Automated robustness checks:
+Refutation tests attempt to falsify the causal estimate through various robustness checks. These include placebo tests, random treatment assignment, and testing alternative causal mechanisms.
 
-1. **Random Treatment**: Replace true treatment with random assignment → effect should disappear
-2. **Placebo Outcome**: Use a pre-treatment outcome as placebo → should show zero effect
-3. **Add Random Confounder**: Add noise variable → estimate should not change
+| Test | Status | Details |
+|------|--------|---------|
+| **Placebo Test** | ✅ PASSED | Placebo outcome: p = 0.72 |
+| **Random Common Cause** | ✅ PASSED | Effect: 0.012 ± 0.15 |
+| **Data Subset Validation** | ✅ PASSED | Consistent across subsets |
+
+**Placebo Outcome Test:**
+
+Tests whether the treatment affects an outcome that should not be causally related. No significant effect should be found.
+
+- **X-axis**: Group (Control vs Treated)
+- **Y-axis**: Placebo Outcome
+- **Blue dots**: Group means
+
+**Interpretation**: The plot shows no significant difference between treatment and control groups on the placebo outcome (p = 0.72), which supports the validity of our causal identification strategy.
 
 **Ideal result**: All refutation tests pass (effect disappears when expected).
 
 ---
 
-##### 13. Diagnostics Summary Dashboard
+<img src="Picture/Screenshot%20from%202025-11-27%2016-44-14.png" alt="Treatment Effect Robustness Across Subsets" width="800"/>
 
-<img src="Picture/Screenshot%20from%202025-11-27%2016-46-06.png" alt="AnalystMode - Full Diagnostics Dashboard" width="800"/>
+**Treatment Effect Robustness Across Data Subsets:**
 
-**What this shows:**
+Shows treatment effect estimates across different random subsamples. Consistent estimates indicate robustness.
 
-Unified view with:
+- **X-axis**: Data Subsets (Subset 1 through Subset 10)
+- **Y-axis**: Treatment Effect
+- **Blue dots**: Subset-specific estimates
+- **Orange dashed line**: Original Effect (reference)
 
-- **CAS Score breakdown** by component (Overlap, Balance, Sensitivity, CATE)
-- **Pass/Fail gates** for each diagnostic check
-- **Automated recommendations**: "Improve balance by adding more covariates" or "Consider stratified analysis for age groups"
+**Interpretation**: All subset estimates are close to the original effect, indicating that the treatment effect is stable and not driven by specific subgroups or outliers.
 
-**Final decision**: If all gates pass, the causal estimate is ready for the **Decision Console** (Section 4.5).
+**Refutation Test Summary (Green Box):**
+
+All refutation tests passed successfully, strengthening confidence in the causal estimate. The placebo test shows no spurious effects, random common cause test confirms no confounding from random variables, and the treatment effect remains stable across data subsets. These results support the validity of our causal identification strategy.
+
+---
+
+##### Advanced Diagnostics
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-44-41.png" alt="Advanced Diagnostics" width="800"/>
+
+**Advanced Diagnostic Checks:**
+
+| Test | Status | Details |
+|------|--------|---------|
+| **Network Spillover Test** | ✅ PASSED | Spillover coefficient: 0.03 |
+| **Temporal Interference Test** | ✅ PASSED | Lag effect: p = 0.42 |
+| **Effect Heterogeneity** | ℹ️ DETECTED | τ² = 125.3, I² = 68% |
+
+**Explanations:**
+
+- **Network Spillover**: No significant network interference detected. Treatment of one unit does not significantly affect outcomes of connected units.
+- **Temporal Interference**: No significant temporal carryover effects. Past treatments do not contaminate current treatment effects.
+- **Effect Heterogeneity**: Significant heterogeneity detected across subgroups. Effect varies meaningfully by observable characteristics.
+
+**Treatment Effect Heterogeneity by Subgroup:**
+
+Forest plot showing treatment effects across different subpopulations. Varying effects indicate important heterogeneity.
+
+- **X-axis**: Treatment Effect (0-100 scale)
+- **Y-axis**: Subgroups (Rural, Urban, Low Income, High Income, Age > 50, Age 30-50, Age < 30, Overall)
+- **Blue dots (◆)**: Subgroup-specific treatment effects with confidence intervals
+- **Orange dashed line**: Overall Effect (reference)
+
+**Interpretation**:
+- Different subgroups show varying treatment effects
+- Age < 30 and High Income groups show stronger effects than the overall average
+- Rural and Age > 50 groups show weaker effects
+
+**Business Implication**: Consider **targeted strategies** for high-response subgroups (Age < 30, High Income) to maximize ROI.
+
+---
+
+<img src="Picture/Screenshot%20from%202025-11-27%2016-44-52.png" alt="Treatment Effect Temporal Stability" width="800"/>
+
+**Treatment Effect Temporal Stability:**
+
+Shows how the treatment effect evolves over time. Stable effects indicate robust long-term impact.
+
+- **X-axis**: Time (Month 1 through Month 12)
+- **Y-axis**: Treatment Effect
+- **Cyan line**: Effect over time
+- **Dashed lines**: 95% CI (Lower and Upper bounds)
+
+**Interpretation**: The treatment effect remains stable over the 12-month period, indicating robust long-term impact. The effect does not decay or amplify over time.
+
+**Advanced Diagnostics Summary (Light Blue Box):**
+
+- **Network Effects**: No significant spillover detected - SUTVA assumption holds
+- **Temporal Stability**: Treatment effects remain stable over 12-month period
+- **Heterogeneity**: Significant subgroup variation detected - younger age groups show stronger effects
+- **Recommendation**: Consider targeted strategies for high-response subgroups (Age < 30, High Income)
 
 ---
 
